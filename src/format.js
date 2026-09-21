@@ -20,7 +20,7 @@ export function escapeMarkdownV2(text) {
   return String(text).replace(MARKDOWN_V2_SPECIAL, (ch) => `\\${ch}`);
 }
 
-/** Returneaza { year, month, day, hour } pentru "now" in Europe/Chisinau. */
+/** Returneaza { year, month, day, hour, minute } pentru "now" in Europe/Chisinau. */
 export function getLocalParts(now = new Date()) {
   const fmt = new Intl.DateTimeFormat('en-CA', {
     timeZone: TIMEZONE,
@@ -28,12 +28,13 @@ export function getLocalParts(now = new Date()) {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
+    minute: '2-digit',
     hour12: false,
   });
   const parts = Object.fromEntries(fmt.formatToParts(now).map((p) => [p.type, p.value]));
   // "hour" poate iesi "24" la miezul noptii in unele medii ICU -- normalizam la 0.
   const hour = Number(parts.hour) % 24;
-  return { year: parts.year, month: parts.month, day: parts.day, hour };
+  return { year: parts.year, month: parts.month, day: parts.day, hour, minute: Number(parts.minute) };
 }
 
 export function getLocalDateString(now = new Date()) {
@@ -88,19 +89,26 @@ export function daysUntil(dateStr, now = new Date()) {
 
 const DIVIDER = '────────────';
 
+// Gramatica romana: numerele >= 20 cer "de" inaintea substantivului numarat
+// ("24 de zile", "20 de locuri"), cele sub 20 nu ("19 zile", "1 loc").
+function withDe(n, singular, plural) {
+  const noun = n === 1 ? singular : plural;
+  return n >= 20 ? `${n} de ${noun}` : `${n} ${noun}`;
+}
+
 export function slotsLabel(timeSlots) {
   if (timeSlots == null) return '— neafișat încă';
-  return `— ${timeSlots} loc${timeSlots === 1 ? '' : 'uri'}`;
+  return `— ${withDe(timeSlots, 'loc', 'locuri')}`;
 }
 
 /** Ca slotsLabel, dar fara liniuta -- pentru linii care deja au un separator "·". */
 export function plainSlotsLabel(timeSlots) {
   if (timeSlots == null) return 'neafișat încă';
-  return `${timeSlots} loc${timeSlots === 1 ? '' : 'uri'}`;
+  return withDe(timeSlots, 'loc', 'locuri');
 }
 
 export function daysWord(n) {
-  return `${n} zi${n === 1 ? '' : 'le'}`;
+  return withDe(n, 'zi', 'zile');
 }
 
 function sortByDate(dates) {
@@ -195,6 +203,91 @@ function buildClosestDatesLines(groups, now) {
   return lines;
 }
 
+// --- Sectiunea "Cele mai apropiate date", varianta compacta pentru mesajul LIVE ---
+//
+// Diferenta fata de buildClosestDatesLines: cand obisnuit si urgent au aceeasi zi
+// (cazul normal), apar pe UN singur bloc -- data o singura data, apoi un rand indentat
+// cu ambele numere de locuri -- in loc sa repete data de doua ori. Zilele cu putine
+// locuri primesc un semnal ⚠️, ca sa sara in ochi fara sa cauti prin mesaj.
+
+const LOW_SLOTS_THRESHOLD = 2;
+
+function slotsWithWarning(timeSlots) {
+  const label = plainSlotsLabel(timeSlots);
+  return timeSlots != null && timeSlots <= LOW_SLOTS_THRESHOLD ? `⚠️ ${label}` : label;
+}
+
+function liveDateHeaderLine(date, now, { withLocation, locationShort }) {
+  const parts = [`*${escapeMarkdownV2(formatDateHuman(date))}*`];
+  if (withLocation) parts.push(escapeMarkdownV2(locationShort));
+  parts.push(escapeMarkdownV2(`peste ${daysWord(daysUntil(date, now))}`));
+  return parts.join(' · ');
+}
+
+function liveGroupLines(g, now, { withLocation }) {
+  const obisnuitFirst = g.obisnuit ? sortByDate(g.obisnuit.dates)[0] ?? null : null;
+  const urgentFirst = g.urgent ? sortByDate(g.urgent.dates)[0] ?? null : null;
+
+  if (!obisnuitFirst && !urgentFirst) {
+    return [`_${escapeMarkdownV2('fără zile libere')}_`];
+  }
+
+  const sameDate = obisnuitFirst && urgentFirst && obisnuitFirst.date === urgentFirst.date;
+
+  if (sameDate || !obisnuitFirst || !urgentFirst) {
+    // Cazul normal: fie ambele coincid, fie doar una din variante exista -- o singura
+    // data, cu ambele numere de locuri (cate exista) pe randul de dedesubt.
+    const anchor = obisnuitFirst ?? urgentFirst;
+    const sub = [];
+    if (obisnuitFirst) sub.push(`${escapeMarkdownV2('obișnuit:')} ${slotsWithWarning(obisnuitFirst.timeSlots)}`);
+    if (urgentFirst) sub.push(`${escapeMarkdownV2('urgent:')} ${slotsWithWarning(urgentFirst.timeSlots)}`);
+    return [
+      liveDateHeaderLine(anchor.date, now, { withLocation, locationShort: g.locationShort }),
+      `   ${sub.join(' · ')}`,
+    ];
+  }
+
+  // Obisnuit si urgent au divergat -- caz neasteptat, dar afisat explicit (cate un bloc
+  // per varianta) in loc de a ascunde diferenta.
+  const lines = [];
+  for (const [entry, label] of [[obisnuitFirst, 'obișnuit'], [urgentFirst, 'urgent']]) {
+    lines.push(liveDateHeaderLine(entry.date, now, { withLocation, locationShort: g.locationShort }));
+    lines.push(`   ${escapeMarkdownV2(`${label}:`)} ${slotsWithWarning(entry.timeSlots)}`);
+  }
+  return lines;
+}
+
+function earliestOverall(g) {
+  const a = g.obisnuit ? sortByDate(g.obisnuit.dates)[0]?.date : null;
+  const b = g.urgent ? sortByDate(g.urgent.dates)[0]?.date : null;
+  if (a && b) return a < b ? a : b;
+  return a ?? b ?? '9999-99-99';
+}
+
+function buildLiveClosestLines(groups, now) {
+  const lines = [];
+  const teoretic = groups.filter((g) => g.examType === 'teoretic');
+  const practic = groups
+    .filter((g) => g.examType === 'practic')
+    .sort((a, b) => earliestOverall(a).localeCompare(earliestOverall(b)));
+
+  if (teoretic.length > 0) {
+    lines.push(`📗 *${escapeMarkdownV2('Teoretic')}*`);
+    for (const g of teoretic) {
+      lines.push(...liveGroupLines(g, now, { withLocation: false }));
+      lines.push('');
+    }
+  }
+  if (practic.length > 0) {
+    lines.push(`🚦 *${escapeMarkdownV2('Practic')}*`);
+    for (const g of practic) {
+      lines.push(...liveGroupLines(g, now, { withLocation: true }));
+      lines.push('');
+    }
+  }
+  return lines;
+}
+
 // --- Compactare in intervale pentru lista completa a unei singure locatii ----------
 
 /** Grupeaza zile consecutive (in lista, nu neaparat calendaristic) cu acelasi numar de locuri. */
@@ -225,8 +318,8 @@ export function formatRangeLabel(range) {
     range.timeSlots == null
       ? 'neafișat încă'
       : isSingleDay
-        ? `${range.timeSlots} loc${range.timeSlots === 1 ? '' : 'uri'}`
-        : `${range.timeSlots} locuri/zi`;
+        ? withDe(range.timeSlots, 'loc', 'locuri')
+        : `${withDe(range.timeSlots, 'loc', 'locuri')}/zi`;
   return `${dateText}: ${countText}`;
 }
 
@@ -377,11 +470,14 @@ export function buildHeartbeatMessage({ categoryResults, now = new Date(), title
  */
 export function buildLiveNowMessage({ categoryResults, now = new Date() }) {
   const groups = groupCategoryResults(categoryResults);
+  const { day, month, hour, minute } = getLocalParts(now);
+  const timeText = `verificat ${Number(day)} ${MONTH_NAMES[Number(month) - 1]}, ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+
   const lines = [];
-  lines.push(`🔴 *${escapeMarkdownV2('LIVE — verificare la cerere')}*`);
+  lines.push(`🔴 *${escapeMarkdownV2(`LIVE · ${timeText}`)}*`);
   lines.push(`📍 ${escapeMarkdownV2(CITY_NAME)}`);
   lines.push('');
-  lines.push(...buildClosestDatesLines(groups, now));
+  lines.push(...buildLiveClosestLines(groups, now));
   return lines.join('\n').trim();
 }
 

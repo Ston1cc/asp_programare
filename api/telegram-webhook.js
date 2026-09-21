@@ -6,8 +6,17 @@
 import { loadConfig } from '../src/config.js';
 import { TRIGGER_COMMANDS, buildLiveReply } from '../src/live.js';
 import { sendTelegramMessage } from '../src/telegram.js';
+import { escapeMarkdownV2 } from '../src/format.js';
 
 export const config = { maxDuration: 30 };
+
+// Cooldown intre doua verificari live, ca sa nu bombardam ASP daca cineva apasa "/acum"
+// repetat (dublu-tap, retry de client etc). Best-effort: traieste doar cat instanta
+// serverless ramane "calda" intre invocari -- Vercel de obicei o pastreaza minute bune,
+// deci acopera cazul real (impacientare), fara sa garanteze protectie absoluta la un
+// atac deliberat (nu e nevoia curenta).
+const COOLDOWN_MS = 45_000;
+let lastCheckAt = 0;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -32,8 +41,19 @@ export default async function handler(req, res) {
     if (message && String(message.chat.id) === String(cfg.telegram.chatId)) {
       const text = (message.text ?? '').trim().toLowerCase();
       if (TRIGGER_COMMANDS.has(text)) {
-        const { message: reply } = await buildLiveReply(cfg.person);
-        await sendTelegramMessage(cfg.telegram, reply);
+        const now = Date.now();
+        const elapsed = now - lastCheckAt;
+        if (elapsed < COOLDOWN_MS) {
+          const waitSec = Math.ceil((COOLDOWN_MS - elapsed) / 1000);
+          await sendTelegramMessage(
+            cfg.telegram,
+            escapeMarkdownV2(`⏳ Ai verificat recent — mai așteaptă ${waitSec}s.`),
+          );
+        } else {
+          lastCheckAt = now;
+          const { message: reply } = await buildLiveReply(cfg.person);
+          await sendTelegramMessage(cfg.telegram, reply);
+        }
       }
     }
   } catch (err) {
