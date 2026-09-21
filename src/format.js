@@ -247,14 +247,18 @@ function liveGroupLines(g, now, { withLocation }) {
     ];
   }
 
-  // Obisnuit si urgent au divergat -- caz neasteptat, dar afisat explicit (cate un bloc
-  // per varianta) in loc de a ascunde diferenta.
-  const lines = [];
-  for (const [entry, label] of [[obisnuitFirst, 'obișnuit'], [urgentFirst, 'urgent']]) {
-    lines.push(liveDateHeaderLine(entry.date, now, { withLocation, locationShort: g.locationShort }));
-    lines.push(`   ${escapeMarkdownV2(`${label}:`)} ${slotsWithWarning(entry.timeSlots)}`);
-  }
-  return lines;
+  // Obisnuit si urgent au divergat -- caz neasteptat. Aici conteaza DATA, nu numarul de
+  // locuri (asta e semnalul util: "pe care varianta o iei mai devreme?"), deci comparatia
+  // e directa, pe un singur rand, fara locuri.
+  const compareLine = [
+    obisnuitFirst && `${escapeMarkdownV2('obișnuit:')} ${escapeMarkdownV2(formatDateHuman(obisnuitFirst.date))}`,
+    urgentFirst && `${escapeMarkdownV2('urgent:')} ${escapeMarkdownV2(formatDateHuman(urgentFirst.date))}`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  if (!withLocation) return [compareLine];
+  return [`*${escapeMarkdownV2(g.locationShort)}*`, `   ${compareLine}`];
 }
 
 function earliestOverall(g) {
