@@ -109,28 +109,20 @@ function sortByDate(dates) {
 
 // --- Gruparea obisnuit/urgent per (tip examen, locatie) ---------------------------
 //
-// Obisnuit si urgent, empiric, au aceleasi zile disponibile (verificat live). Gruparea
-// de mai jos NU presupune asta static -- compara efectiv cele doua seturi de date la
-// fiecare mesaj, si arata randuri separate daca vreodata diverg. Cheia de grupare
-// foloseste `examType`+`locationId` din config.js, nu parsare de text din eticheta.
+// Gruparea perecheaza obisnuit + urgent ca sa poata fi afisate impreuna (unul sub altul,
+// per locatie), fara sa ascunda vreo varianta -- userul vrea explicit sa vada ambele
+// date, chiar daca in practica coincid. Cheia de grupare foloseste `examType`+
+// `locationId` din config.js, nu parsare de text din eticheta.
 
 function groupKey(category) {
   return `${category.examType}::${category.locationId ?? ''}`;
 }
 
-function sameDates(a, b) {
-  if (!a || !b) return false;
-  const sa = sortByDate(a);
-  const sb = sortByDate(b);
-  if (sa.length !== sb.length) return false;
-  return sa.every((d, i) => d.date === sb[i].date && d.timeSlots === sb[i].timeSlots);
-}
-
 /**
  * Grupeaza categoryResults (fiecare = { category, dates }) pe (tip examen, locatie),
- * perechind obisnuit + urgent. Fiecare grup primeste `merged` (true daca ambele exista
- * si au aceleasi date) si `display` (setul de date de folosit in afisare -- preferă
- * varianta obisnuita, cade pe urgent daca obisnuit a esuat la citire).
+ * perechind obisnuit + urgent. `display` = setul de date folosit in sectiunile care
+ * arata o singura varianta (lista completa, tabelul practic) -- preferă obisnuit,
+ * cade pe urgent daca obisnuit a esuat la citire.
  */
 function groupCategoryResults(categoryResults) {
   const map = new Map();
@@ -151,11 +143,7 @@ function groupCategoryResults(categoryResults) {
     if (cr.category.urgent) g.urgent = cr;
     else g.obisnuit = cr;
   }
-  return [...map.values()].map((g) => {
-    const merged = g.obisnuit && g.urgent ? sameDates(g.obisnuit.dates, g.urgent.dates) : true;
-    const display = g.obisnuit ?? g.urgent;
-    return { ...g, merged, display };
-  });
+  return [...map.values()].map((g) => ({ ...g, display: g.obisnuit ?? g.urgent }));
 }
 
 // --- Sectiunea "Cele mai apropiate date" -------------------------------------------
@@ -174,16 +162,18 @@ function closestLineText(dates, now, { withLocation, withDays }) {
   return parts.join(' · ');
 }
 
+// Arata mereu ambele variante, obisnuit si urgent, fiecare pe randul ei -- chiar daca
+// in practica au aceleasi date, userul vrea sa vada explicit ambele, nu doar una.
 function closestLinesForGroup(g, now, { withLocation, withDays }) {
   const loc = withLocation ? g.locationShort : null;
-  if (g.merged || !g.obisnuit || !g.urgent) {
-    return [closestLineText(g.display.dates, now, { withLocation: loc, withDays })];
+  const lines = [];
+  if (g.obisnuit) {
+    lines.push(`${closestLineText(g.obisnuit.dates, now, { withLocation: loc, withDays })} ${escapeMarkdownV2('(obișnuit)')}`);
   }
-  // Obisnuit si urgent au divergat -- caz neasteptat, dar afisat explicit in loc de ascuns.
-  return [
-    `${closestLineText(g.obisnuit.dates, now, { withLocation: loc, withDays })} ${escapeMarkdownV2('(obișnuit)')}`,
-    `${closestLineText(g.urgent.dates, now, { withLocation: loc, withDays })} ${escapeMarkdownV2('(urgent)')}`,
-  ];
+  if (g.urgent) {
+    lines.push(`${closestLineText(g.urgent.dates, now, { withLocation: loc, withDays })} ${escapeMarkdownV2('(urgent)')}`);
+  }
+  return lines;
 }
 
 function buildClosestDatesLines(groups, now) {
@@ -344,11 +334,6 @@ export function buildHeartbeatMessage({ categoryResults, now = new Date(), title
     : `📅 *${escapeMarkdownV2(`Situație ${Number(day)} ${MONTH_NAMES[Number(month) - 1]}, ${String(hour).padStart(2, '0')}:00`)}*`;
   lines.push(heading);
   lines.push(`📍 ${escapeMarkdownV2(CITY_NAME)}`);
-
-  const pairedGroups = groups.filter((g) => g.obisnuit && g.urgent);
-  if (pairedGroups.length > 0 && pairedGroups.every((g) => g.merged)) {
-    lines.push(`_${escapeMarkdownV2('(obișnuit și urgent au aceleași date)')}_`);
-  }
   lines.push('');
 
   lines.push(`⚡ *${escapeMarkdownV2('Cele mai apropiate date')}*`);
