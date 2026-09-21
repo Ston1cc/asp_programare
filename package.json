@@ -1,0 +1,14 @@
+{
+  "name": "asp-programare",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Monitorizeaza zilele libere pentru examenul auto la ASP si trimite notificari pe Telegram",
+  "engines": {
+    "node": ">=20.6"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "check": "node --env-file=.env src/index.js"
+  }
+}
