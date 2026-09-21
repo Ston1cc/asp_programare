@@ -5,7 +5,7 @@ on:
     # Minutul 0 e cel mai incarcat moment global pentru GH Actions (varful orei) --
     # GitHub avertizeaza explicit ca schedule-urile de acolo pot fi intarziate sau
     # sarite. Decalat pe minutul 7 ca sa evitam coliziunea cu toata lumea.
-    - cron: '7 */2 * * *'
+    - cron: '7 * * * *'
   workflow_dispatch: {}
 
 concurrency:
