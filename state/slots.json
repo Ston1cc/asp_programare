@@ -1,5 +1,5 @@
 {
-  "lastRun": "2026-09-21T16:04:26.613Z",
+  "lastRun": "2026-09-21T21:01:17.858Z",
   "lastHeartbeatDate": "2026-09-21",
   "consecutiveFailures": 0,
   "earliest": {
@@ -111,15 +111,15 @@
     },
     "practic-obisnuit-radautanu|2026-10-22": {
       "date": "2026-10-22",
-      "timeSlots": 5
+      "timeSlots": 3
     },
     "practic-obisnuit-radautanu|2026-10-23": {
       "date": "2026-10-23",
-      "timeSlots": 6
+      "timeSlots": 5
     },
     "practic-obisnuit-ieasilor|2026-10-28": {
       "date": "2026-10-28",
-      "timeSlots": 6
+      "timeSlots": 5
     },
     "practic-obisnuit-ieasilor|2026-10-29": {
       "date": "2026-10-29",
@@ -131,7 +131,7 @@
     },
     "practic-obisnuit-salcamilor|2026-10-21": {
       "date": "2026-10-21",
-      "timeSlots": 3
+      "timeSlots": 1
     },
     "practic-obisnuit-salcamilor|2026-10-22": {
       "date": "2026-10-22",
@@ -139,7 +139,7 @@
     },
     "practic-obisnuit-salcamilor|2026-10-23": {
       "date": "2026-10-23",
-      "timeSlots": 10
+      "timeSlots": 9
     },
     "practic-obisnuit-salcamilor|2026-10-26": {
       "date": "2026-10-26",
@@ -163,15 +163,15 @@
     },
     "practic-urgent-radautanu|2026-10-22": {
       "date": "2026-10-22",
-      "timeSlots": 5
+      "timeSlots": 3
     },
     "practic-urgent-radautanu|2026-10-23": {
       "date": "2026-10-23",
-      "timeSlots": 6
+      "timeSlots": 5
     },
     "practic-urgent-ieasilor|2026-10-28": {
       "date": "2026-10-28",
-      "timeSlots": 6
+      "timeSlots": 5
     },
     "practic-urgent-ieasilor|2026-10-29": {
       "date": "2026-10-29",
@@ -183,7 +183,7 @@
     },
     "practic-urgent-salcamilor|2026-10-21": {
       "date": "2026-10-21",
-      "timeSlots": 3
+      "timeSlots": 1
     },
     "practic-urgent-salcamilor|2026-10-22": {
       "date": "2026-10-22",
@@ -191,7 +191,7 @@
     },
     "practic-urgent-salcamilor|2026-10-23": {
       "date": "2026-10-23",
-      "timeSlots": 10
+      "timeSlots": 9
     },
     "practic-urgent-salcamilor|2026-10-26": {
       "date": "2026-10-26",
