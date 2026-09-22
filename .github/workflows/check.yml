@@ -8,7 +8,12 @@ on:
     # a heartbeat-ului de dimineata (7:30 Europe/Chisinau, fara offset de jumatate
     # de ora fata de UTC, deci minutul UTC = minutul local).
     - cron: '30 * * * *'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      debug:
+        description: 'Ruleaza doar scripts/debug-urgent.js (comparatie obisnuit/urgent), fara verificarea normala'
+        type: boolean
+        default: false
 
 concurrency:
   group: asp-check
@@ -30,7 +35,18 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Ruleaza diagnosticul obisnuit/urgent
+        if: ${{ inputs.debug == true }}
+        env:
+          ASP_IDNP: ${{ secrets.ASP_IDNP }}
+          ASP_DOC_SERIES: ${{ secrets.ASP_DOC_SERIES }}
+          ASP_DOC_ISSUE_DATE: ${{ secrets.ASP_DOC_ISSUE_DATE }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node scripts/debug-urgent.js
+
       - name: Ruleaza verificarea
+        if: ${{ inputs.debug != true }}
         env:
           ASP_IDNP: ${{ secrets.ASP_IDNP }}
           ASP_DOC_SERIES: ${{ secrets.ASP_DOC_SERIES }}
@@ -40,6 +56,7 @@ jobs:
         run: node src/index.js
 
       - name: Commit state
+        if: ${{ inputs.debug != true }}
         run: |
           git config user.name "asp-programare-bot"
           git config user.email "actions@users.noreply.github.com"
