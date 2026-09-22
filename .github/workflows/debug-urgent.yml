@@ -1,0 +1,32 @@
+name: Debug obisnuit vs urgent
+
+# Workflow temporar de diagnostic -- declansat manual, niciodata pe schedule.
+# Ruleaza scripts/debug-urgent.js pe un runner cu acces real la eservicii.gov.md
+# (spre deosebire de sesiunea Claude Code on the web, care nu are acces la acel
+# domeniu), ca sa comparam serviceId/prima zi libera intre obisnuit si urgent
+# fara sa fie nevoie ca cineva sa ruleze ceva local.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Ruleaza diagnosticul
+        env:
+          ASP_IDNP: ${{ secrets.ASP_IDNP }}
+          ASP_DOC_SERIES: ${{ secrets.ASP_DOC_SERIES }}
+          ASP_DOC_ISSUE_DATE: ${{ secrets.ASP_DOC_ISSUE_DATE }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node scripts/debug-urgent.js
