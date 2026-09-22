@@ -17,7 +17,8 @@ import { sendTelegramMessage } from './telegram.js';
 
 const STATE_PATH = fileURLToPath(new URL('../state/slots.json', import.meta.url));
 const FAILURE_THRESHOLD = 3;
-const HEARTBEAT_HOUR = 8;
+const HEARTBEAT_HOUR = 7;
+const HEARTBEAT_MINUTE = 30;
 
 async function main() {
   const config = loadConfig();
@@ -65,9 +66,11 @@ async function main() {
   }
 
   // --- Heartbeat zilnic ---
-  const { hour: localHour } = getLocalParts(now);
+  const { hour: localHour, minute: localMinute } = getLocalParts(now);
   const todayLocal = getLocalDateString(now);
-  const heartbeatDue = localHour >= HEARTBEAT_HOUR && nextState.lastHeartbeatDate !== todayLocal;
+  const heartbeatDue =
+    localHour * 60 + localMinute >= HEARTBEAT_HOUR * 60 + HEARTBEAT_MINUTE &&
+    nextState.lastHeartbeatDate !== todayLocal;
   if (heartbeatDue && categoryResults.length > 0) {
     messages.push(buildHeartbeatMessage({ categoryResults, now }));
     nextState.lastHeartbeatDate = todayLocal;
