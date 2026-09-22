@@ -59,6 +59,15 @@ because they have fundamentally different latency requirements.
   `servicePath` segment for the vehicle category — currently hardcoded to `BMechanical`
   (an automatic-transmission variant, `BAutomatic`, also exists and was verified live if
   that's ever needed instead). Also validates required env vars at startup.
+  **Urgency is a separate exam-type name, not a boolean flag**: the real ASP site (captured
+  22.09.2026 from the actual APO01 request flow's network calls) resolves urgent via
+  `get-service/TheoreticalUrgentExam/False` / `PracticalUrgentExam/False/{categorie}` — a
+  distinct `get-service` path, always with `False` as the second segment. An earlier version
+  used `TheoreticalExam/True` / `PracticalExam/True/{categorie}` (urgency as `True` on the
+  *same* exam type); that also returns 200 with a valid-looking service ID, but it's the
+  wrong service — a silent failure that happened to mirror obișnuit's calendar. Confirmed
+  live via the site's own "calendar informativ" widget (visible mid-flow before payment,
+  network-tab-captured) that real urgent dates are genuinely earlier than obișnuit's.
 - **`src/state.js`** — persistence + diff logic, used only by the periodic checker (the
   webhook never touches this). Tracks, per category, the *earliest known available date*
   (not just a raw list of slots), and only fires a priority alert when that minimum gets
@@ -67,11 +76,14 @@ because they have fundamentally different latency requirements.
   "record" alert for every category at once.
 - **`src/format.js`** — all Telegram message construction, MarkdownV2 escaping, and
   date/timezone utilities (fixed to Europe/Chisinau regardless of runner locale). Always
-  shows "obișnuit" and "urgent" as separate labeled lines (even though they empirically
-  share identical dates — showing both explicitly was a deliberate user choice, not an
-  oversight to "fix" by collapsing them again). Renders the multi-location practic
-  comparison as a fixed-width table inside a ` ``` ` code block, since Telegram does not
-  render Markdown tables — only monospaced code blocks preserve column alignment.
+  shows "obișnuit" and "urgent" as separate labeled lines — a deliberate user choice, not
+  an oversight to "fix" by collapsing them. They usually do diverge in practice (urgent is
+  often earlier — see the `config.js` note on the `servicePath` bug this used to mask);
+  `liveGroupLines` in `format.js` renders a compact single-date block when they coincide
+  and an explicit `obișnuit: … · urgent: …` comparison line when they don't, so both cases
+  render correctly without assuming either. Renders the multi-location practic comparison
+  as a fixed-width table inside a ` ``` ` code block, since Telegram does not render
+  Markdown tables — only monospaced code blocks preserve column alignment.
 - **`src/telegram.js`** — minimal Telegram Bot API client (`sendMessage`; also
   `getUpdates`, unused now that the responder is webhook-based, kept in case a polling
   fallback is ever needed again).

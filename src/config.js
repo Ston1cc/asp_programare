@@ -20,15 +20,21 @@ const LOCATIONS = {
 };
 
 // Ruta pentru service ID difera intre teoretic si practic:
-//   teoretic:  get-service/{TheoreticalExam}/{urgent}
-//   practic:   get-service/{PracticalExam}/{urgent}/{categorie}
-// Capcana verificata: ruta practicului FARA segmentul de categorie intoarce 200 cu
-// service ID-ul teoretic (esec silentios) -- de asta path-ul e explicit per categorie,
+//   teoretic:  get-service/{TheoreticalExam|TheoreticalUrgentExam}/False
+//   practic:   get-service/{PracticalExam|PracticalUrgentExam}/False/{categorie}
+// Capcana verificata (22.09.2026, capturat din network tab-ul flow-ului APO01 real):
+// urgenta NU e un flag boolean pe acelasi exam type -- e un exam type separat
+// (`TheoreticalUrgentExam` / `PracticalUrgentExam`), iar al doilea segment e mereu
+// `False` in ambele cazuri. Varianta veche (`TheoreticalExam/True`,
+// `PracticalExam/True/...`) intoarce 200 cu un service ID valid dar GRESIT -- un
+// serviciu diferit care intampla sa aiba acelasi calendar ca varianta obisnuita,
+// nu serviciul urgent real (esec silentios, nu eroare). Verificat live ca serviciul
+// urgent corect are intr-adevar date mai devreme decat obisnuit (uneori cu >1 saptamana).
+// Capcana veche inca valabila: ruta practicului FARA segmentul de categorie intoarce 200
+// cu service ID-ul teoretic (esec silentios) -- de asta path-ul e explicit per categorie,
 // nu construit dinamic din bucati.
 // `examType` + `urgent` -- folosite in format.js ca sa perecheze obisnuit/urgent per
-// locatie fara sa parseze eticheta (fragil). Empiric, obisnuit si urgent au aceleasi
-// zile disponibile -- format.js verifica asta la fiecare mesaj (nu presupune static)
-// si afiseaza randuri separate daca vreodata diverg.
+// locatie fara sa parseze eticheta (fragil).
 const BASE_CATEGORIES = [
   {
     key: 'teoretic-obisnuit',
@@ -45,7 +51,7 @@ const BASE_CATEGORIES = [
     emoji: '📕',
     examType: 'teoretic',
     urgent: true,
-    servicePath: 'TheoreticalExam/True',
+    servicePath: 'TheoreticalUrgentExam/False',
     locations: [LOCATIONS.salcamilor],
   },
   {
@@ -63,7 +69,7 @@ const BASE_CATEGORIES = [
     emoji: '🚨',
     examType: 'practic',
     urgent: true,
-    servicePath: 'PracticalExam/True/BMechanical',
+    servicePath: 'PracticalUrgentExam/False/BMechanical',
     locations: [LOCATIONS.radautanu, LOCATIONS.ieasilor, LOCATIONS.salcamilor],
   },
 ];
