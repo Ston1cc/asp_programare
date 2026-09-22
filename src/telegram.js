@@ -2,6 +2,19 @@
 
 import { splitMessage } from './format.js';
 
+// Tastatura persistenta (reply keyboard, NU inline) atasata la fiecare mesaj trimis de bot
+// -- userul apasa butonul in loc sa scrie manual "/acum". Textul butonului trebuie sa fie
+// EXACT o comanda din TRIGGER_COMMANDS (src/live.js) -- Telegram trimite inapoi ca mesaj
+// text chiar eticheta butonului, nu un cod separat (asta e diferenta fata de un inline
+// keyboard cu callback_data), deci webhook-ul o proceseaza prin acelasi flux ca orice
+// comanda scrisa de mana, fara cod nou. `is_persistent` -- ramane vizibila dupa ce e
+// apasata o data, nu dispare dupa primul tap.
+const ACUM_KEYBOARD = {
+  keyboard: [[{ text: '/acum' }]],
+  resize_keyboard: true,
+  is_persistent: true,
+};
+
 export async function sendTelegramMessage({ botToken, chatId }, text) {
   const chunks = splitMessage(text);
   for (const chunk of chunks) {
@@ -13,6 +26,7 @@ export async function sendTelegramMessage({ botToken, chatId }, text) {
         text: chunk,
         parse_mode: 'MarkdownV2',
         disable_web_page_preview: true,
+        reply_markup: ACUM_KEYBOARD,
       }),
     });
     if (!res.ok) {
