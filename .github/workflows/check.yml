@@ -4,8 +4,10 @@ on:
   schedule:
     # Minutul 0 e cel mai incarcat moment global pentru GH Actions (varful orei) --
     # GitHub avertizeaza explicit ca schedule-urile de acolo pot fi intarziate sau
-    # sarite. Decalat pe minutul 7 ca sa evitam coliziunea cu toata lumea.
-    - cron: '7 * * * *'
+    # sarite. Decalat pe minutul 30 (in afara varfului) -- coincide si cu ora exacta
+    # a heartbeat-ului de dimineata (7:30 Europe/Chisinau, fara offset de jumatate
+    # de ora fata de UTC, deci minutul UTC = minutul local).
+    - cron: '30 * * * *'
   workflow_dispatch: {}
 
 concurrency:
