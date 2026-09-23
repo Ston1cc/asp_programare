@@ -1,5 +1,5 @@
 {
-  "lastRun": "2026-09-23T06:05:10.949Z",
+  "lastRun": "2026-09-23T06:10:20.518Z",
   "lastHeartbeatDate": "2026-09-23",
   "consecutiveFailures": 0,
   "earliest": {
@@ -7,7 +7,7 @@
     "teoretic-urgent": "2026-10-05",
     "practic-obisnuit-ieasilor": "2026-10-28",
     "practic-obisnuit-salcamilor": "2026-10-22",
-    "practic-urgent-salcamilor": "2026-10-15",
+    "practic-urgent-salcamilor": "2026-10-16",
     "practic-urgent-radautanu": "2026-10-19"
   },
   "slots": {
@@ -170,10 +170,6 @@
     "practic-urgent-radautanu|2026-10-23": {
       "date": "2026-10-23",
       "timeSlots": 7
-    },
-    "practic-urgent-salcamilor|2026-10-15": {
-      "date": "2026-10-15",
-      "timeSlots": 1
     },
     "practic-urgent-salcamilor|2026-10-16": {
       "date": "2026-10-16",
