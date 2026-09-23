@@ -27,7 +27,7 @@ function idnpChecksumValid(digits) {
   return sum % 10 === Number(digits[12]);
 }
 
-function validateIdnp(text) {
+export function validateIdnp(text) {
   const v = text.trim();
   return /^\d{13}$/.test(v) && idnpChecksumValid(v) ? v : null;
 }
@@ -39,7 +39,7 @@ function validateSeria(text) {
 
 // Accepta "DD.MM.YYYY" sau "YYYY-MM-DD" -- formatul pe care oamenii il scriu de pe
 // buletin vs formatul ISO cerut de loadConfig/asp.js.
-function parseIssueDate(text) {
+export function parseIssueDate(text) {
   const v = text.trim();
   let year, month, day;
   const iso = v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
