@@ -58,6 +58,7 @@ import {
   listApprovedAccess,
   tryAcquireRateLimit,
   isGlobalRateLimited,
+  touchUser,
 } from '../src/userStore.js';
 
 export const config = { maxDuration: 30 };
@@ -107,6 +108,15 @@ async function runUserLiveCheck(botToken, chatId, person, keyboard) {
   }
   const { message: reply } = await buildLiveReply(person);
   await replyTo(botToken, chatId, reply, keyboard);
+
+  // Reinnoieste TTL-ul (vezi userStore.js) -- best-effort, dupa ce raspunsul a plecat deja:
+  // un chat activ nu trebuie scos din sistem doar pentru ca 90 de zile au trecut de la
+  // inregistrare/aprobare, cat timp inca foloseste botul.
+  try {
+    await touchUser(chatId);
+  } catch (err) {
+    console.error('Eroare la reinnoirea TTL-ului:', err.message);
+  }
 }
 
 async function handleOwnerMessage(cfg, rawText, text) {

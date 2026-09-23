@@ -201,6 +201,22 @@ export async function deleteAccess(chatId) {
   await del(`access:${chatId}`);
 }
 
+/**
+ * Reinnoieste TTL-ul unui chat aprobat care tocmai a folosit botul -- fara asta,
+ * `person:`/`access:` expira 90 de zile dupa inregistrare/aprobare INDIFERENT cat de des
+ * chat-ul foloseste /acum, si un user activ ar fi scos brusc si ar trebui sa ceara acces +
+ * sa se reinregistreze de la zero. Doar EXPIRE (nu re-scrie valoarea), deci nu are nevoie
+ * de cheia de criptare si nu poate corupe un record valid. Best-effort: o eroare aici nu
+ * trebuie sa strice raspunsul la /acum, doar logata de apelant.
+ */
+export async function touchUser(chatId) {
+  const client = await getClient();
+  await Promise.all([
+    client.expire(`person:${chatId}`, PERSON_TTL_SECONDS),
+    client.expire(`access:${chatId}`, ACCESS_APPROVED_TTL_SECONDS),
+  ]);
+}
+
 /** Toate chat-urile cu acces aprobat -- pentru /utilizatori. SCAN (non-blocant), nu KEYS. */
 export async function listApprovedAccess() {
   const client = await getClient();
