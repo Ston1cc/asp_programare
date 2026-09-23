@@ -35,6 +35,16 @@ export const REGISTER_KEYBOARD = {
   is_persistent: true,
 };
 
+// Tastatura de o singura data pentru pasul "vehicle" din inregistrare (src/registration.js)
+// -- disparea dupa apasare (one_time_keyboard), Telegram revine la ultima tastatura
+// persistenta (REGISTER_KEYBOARD, inca vizibila mai jos in acelasi flux) dupa ce userul
+// raspunde. Userul poate oricum scrie manual "manuală"/"automată" in loc sa apese.
+export const VEHICLE_KEYBOARD = {
+  keyboard: [[{ text: '🔧 Manuală' }, { text: '⚙️ Automată' }]],
+  resize_keyboard: true,
+  one_time_keyboard: true,
+};
+
 // Inline keyboard cu un buton "Programează-te", atasat mesajelor care anunta o zi noua/mai
 // devreme (alerta 🔥, zile noi, si raspunsul /acum) -- mai putine atingeri intre alerta si
 // deschiderea site-ului de programare. Deliberat un inline keyboard (nu reply keyboard),
