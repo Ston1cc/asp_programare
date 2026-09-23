@@ -40,24 +40,52 @@ because they have fundamentally different latency requirements.
   **before** the pending-registration check in the non-owner branch — it's the escape
   hatch out of confusion, so it has to work even mid-registration, not get swallowed by
   step validation. Verifies the
-  `X-Telegram-Bot-Api-Secret-Token` header against `TELEGRAM_WEBHOOK_SECRET` before doing
-  anything (the endpoint is public by nature; this is the only thing stopping a stranger
-  who finds the URL from triggering a live fetch). Deployed as a separate Vercel project
+  `X-Telegram-Bot-Api-Secret-Token` header against `TELEGRAM_WEBHOOK_SECRET` (constant-time
+  compare via `crypto.timingSafeEqual`, not `!==`) before doing anything (the endpoint is
+  public by nature; this is the only thing stopping a stranger who finds the URL from
+  triggering a live fetch). Deployed as a separate Vercel project
   (`asp-programare-webhook`) with its own copy of the same env vars — **not wired to
   auto-deploy from git**, so a code change here needs a manual redeploy.
   (An earlier version polled Telegram's `getUpdates` every 5 min via a second GitHub
   Actions workflow — replaced because polling has a hard ~5 min floor and no reasonable
   way to go lower on that platform. The webhook has none of that latency.)
+  **Post-audit hardening (added after a security review found the bot let anyone
+  register their own government ID with zero gatekeeping):** any chat that isn't the
+  owner and isn't already `approved` in `access:<chatId>` (Redis, see `userStore.js`)
+  gets a "cerere trimisă" reply instead of being asked for IDNP straight away; the owner
+  is notified once (first message only, via `SET NX` in `requestAccessIfNew`) with an
+  inline ✅ Aprobă / ❌ Respinge keyboard. Decisions arrive as `callback_query` updates
+  (handled in `handleCallbackQuery`, separate from `message` updates in the same
+  handler) — trusted only when `callback_query.from.id` matches the owner's configured
+  chat ID, never the `callback_data` payload alone. `/utilizatori` (list approved chats)
+  and `/revoca <chat_id>` (wipe access + person + pending state for one chat) are
+  owner-only commands for managing this. The bot also `leaveChat`s itself out of any
+  non-private chat immediately — it's designed for 1:1 use only, since a group would let
+  anyone in it read whatever another member typed (including IDNP/serie/date during
+  registration) and drive `/acum`/`/sterge` on someone else's saved data.
 - **`src/live.js`** — the actual "fetch everything live + build the reply" logic, shared
   between the webhook and (if ever needed) a local script. Deliberately has no dependency
-  on `state.js` — a live check bypasses the diff/history entirely by design.
+  on `state.js` — a live check bypasses the diff/history entirely by design. Unlike
+  `index.js` (sequential, no time pressure), this fetches all `CATEGORIES` **in
+  parallel** with a shorter retry/timeout budget (`FAST_FETCH_OPTIONS`) and a per-call
+  memoization `Map` passed into `fetchCategoryDates` — required to fit inside Vercel's
+  `maxDuration: 30` on `api/telegram-webhook.js` (8 categories run sequentially with the
+  cron's slower retry policy would blow past that).
 - **`src/asp.js`** — the only module that talks to `eservicii.gov.md/asp/dimtcca/api`.
   No browser/Playwright is used; it's a 3-step JSON chain per target: `get-service`
   (resolve a service ID from exam type + urgency [+ vehicle category for practic]) →
   `qmatic/locations` (resolve a location ID from its display name) → `qmatic/dates`
   (POST, returns available days ± ~3 months, with slot counts). Includes retry with
-  backoff and strict response-shape validation — an unexpected/malformed response is
-  treated as a failure, never silently as "no slots available".
+  backoff (`fetchWithRetry` takes an optional `{ retryDelays, timeoutMs }` — omitted for
+  `index.js`, so the cron path's behavior is unchanged; `live.js` overrides both to stay
+  fast) and a per-request `AbortSignal.timeout` on every attempt (a hung fetch used to be
+  able to block a request indefinitely). `getServiceId`/`getLocations` take an optional
+  `cache` `Map` that memoizes the in-flight *promise* (not just the resolved value) keyed
+  by service path / service ID — only 4 distinct service paths exist across the 8
+  monitored categories, so without it `live.js`'s parallel fetch would redundantly
+  request the same service ID / location list multiple times. Strict response-shape
+  validation throughout — an unexpected/malformed response is treated as a failure,
+  never silently as "no slots available".
 - **`src/config.js`** — defines `CATEGORIES`, the flattened list of (exam type ×
   urgency × location) targets actually monitored, built from `BASE_CATEGORIES` ×
   `LOCATIONS`. The theoretical exam has a single Chișinău location (Salcâmilor); the
@@ -90,34 +118,69 @@ because they have fundamentally different latency requirements.
   render correctly without assuming either. Renders the multi-location practic comparison
   as a fixed-width table inside a ` ``` ` code block, since Telegram does not render
   Markdown tables — only monospaced code blocks preserve column alignment.
-- **`src/telegram.js`** — minimal Telegram Bot API client (`sendMessage`; also
-  `getUpdates`, unused now that the responder is webhook-based, kept in case a polling
-  fallback is ever needed again; `setMyCommands`, registers the native Telegram command
-  menu — see `scripts/set-commands.mjs`). Also exports three persistent reply-keyboards
-  (`ACUM_KEYBOARD`, `REGISTERED_KEYBOARD`, `REGISTER_KEYBOARD`), each showing only the
-  commands that actually apply to that chat's state, plus `/help` on all three —
-  `sendTelegramMessage` defaults to `ACUM_KEYBOARD` so `index.js`'s calls (owner only)
-  need no changes; the webhook passes the other two explicitly depending on chat state.
+- **`src/telegram.js`** — minimal Telegram Bot API client built on one generic
+  `callTelegram(botToken, method, payload)` helper (POSTs to
+  `api.telegram.org/bot<token>/<method>`, throws on a non-2xx or `{ok: false}`).
+  `sendMessage`/`getUpdates`/`setMyCommands` are built on it, plus
+  `answerCallbackQuery` (must be called on every inline-button press or Telegram shows a
+  stuck "loading" spinner on the button), `editMessageText` (marks the access-request
+  message as decided, in place), `deleteMessage` (removes a user's message containing
+  IDNP/serie/date right after the bot reads it) and `leaveChat` (see the group-chat note
+  under `api/telegram-webhook.js`). `getUpdates` is unused now that the responder is
+  webhook-based, kept in case a polling fallback is ever needed again. Also exports three
+  persistent reply-keyboards (`ACUM_KEYBOARD`, `REGISTERED_KEYBOARD`, `REGISTER_KEYBOARD`),
+  each showing only the commands that actually apply to that chat's state, plus `/help`
+  on all three — `sendTelegramMessage` defaults to `ACUM_KEYBOARD` so `index.js`'s calls
+  (owner only) need no changes; the webhook passes the other two, or an inline
+  approve/deny keyboard, explicitly depending on chat state. `sendTelegramMessage`
+  returns the last sent message (needed to capture the access-request notification's
+  `message_id`, later passed to `editMessageText` once the owner decides).
 - **`src/registration.js`** + **`src/userStore.js`** — let people other than the bot's
   owner use it too, *in their own name* (own IDNP/doc series/issue date), not the
-  owner's. Only the webhook touches these — `index.js` (periodic checker) still only
-  ever runs as the owner, from `.env`, unchanged. `registration.js` is the pure 3-step
-  conversation state machine (IDNP → seria → data eliberării, each validated and
-  re-prompted on bad input) plus `buildHelpMessage`, which adapts its command list to
-  whether the chat is the owner, an already-registered third party, or someone who still
-  needs to register; `userStore.js` persists the per-`chat_id` result plus the
-  in-progress step (any standard Redis, via the `redis` npm client — the one dependency
-  the project has, used only by the webhook; `index.js`'s zero-dependency checker never
-  imports this module). Two TTLs: 90 days for a
-  confirmed person, 10 minutes for an abandoned mid-registration state (so a half-finished
-  conversation doesn't wedge that chat forever). `/sterge` lets anyone erase their own
-  stored data on demand — deliberate, since this stores real government ID numbers
-  belonging to people who are not the project's owner.
+  owner's, but **only once the owner has approved that chat** (see
+  `api/telegram-webhook.js` above) — an unrestricted version of this flow is exactly what
+  a security audit flagged: anyone finding the bot could register a government ID with no
+  gatekeeping at all. Only the webhook touches these — `index.js` (periodic checker)
+  still only ever runs as the owner, from `.env`, unchanged. `registration.js` is the
+  pure state machine: IDNP (validated as 13 digits *and* checked against Moldova's real
+  checksum — weights 7/3/1 repeated over the first 12 digits, mod 10 must equal digit
+  13 — to catch typos before they ever reach ASP) → seria → data eliberării, each
+  validated and re-prompted on bad input. Any step's raw input starting with `/` is
+  treated as "user typed a command instead of answering" and cancels registration with a
+  clear message (`{ cancelled: true }`) instead of being validated as a nonsense IDNP —
+  the pre-audit version would confusingly reject `/acum` typed mid-registration as
+  "IDNP invalid". Also exports `buildHelpMessage` (adapts its command list to owner /
+  already-registered / needs-to-register / needs-approval) and the access-request
+  message builders (`formatAccessRequestText`, `buildAccessDecisionLine`,
+  `buildAccessDecisionMessage`, plus the `ACCESS_*` reply constants) used by the
+  approval flow. `userStore.js` persists everything in Redis (via the `redis` npm
+  client — the one dependency the project has, used only by the webhook; `index.js`'s
+  zero-dependency checker never imports this module), with the connection configured
+  with a 5s connect timeout and a bounded reconnect strategy (gives up after 3 tries
+  instead of hanging a request indefinitely), and resets its cached connection promise
+  on a failed `connect()` so the next request can retry instead of being stuck replaying
+  the same rejected promise until the instance recycles. Three record types, all with
+  TTLs so stray personal data doesn't accumulate forever: `person:<chatId>` (90 days),
+  `pending:<chatId>` (10 minutes — an abandoned mid-registration chat doesn't stay
+  wedged), `access:<chatId>` (30 days while pending/denied, 90 while approved).
+  **Every value written through `setJSON`/`getJSON` is encrypted AES-256-GCM** with
+  `USER_DATA_KEY` (32 random bytes, base64, kept separate from `REDIS_URL`) before it
+  touches Redis — this stores real government ID numbers belonging to people who are not
+  the project's owner, so a leaked/misconfigured Redis connection string alone must not
+  be enough to read them. A record that fails to decrypt (wrong key, corruption, or the
+  pre-encryption plaintext format from before this was added) is treated as if it didn't
+  exist, not as a fatal error. Rate-limiting (`tryAcquireRateLimit`,
+  `isGlobalRateLimited`) lives here too, as plain Redis counters (no personal data, so no
+  encryption) — per-chat so one user's `/acum` doesn't put another user on cooldown (the
+  original single shared in-memory cooldown did exactly that), plus a global per-minute
+  cap to protect ASP's API from combined volume across every registered user. `/sterge`
+  lets anyone erase their own stored data on demand.
 - **`scripts/set-commands.mjs`** — one-off script (`npm run set-commands`) that registers
   the command list in Telegram's native "Menu" button next to the text field, with a
   reduced list scoped just to the owner's chat (no `/inregistrare`/`/sterge` — meaningless
-  for someone whose data comes from `.env`, not Redis). Re-run only when the command list
-  changes, not on every deploy.
+  for someone whose data comes from `.env`, not Redis — but with `/utilizatori` and
+  `/revoca`, meaningless for anyone else). Re-run only when the command list changes,
+  not on every deploy.
 
 ### Why MarkdownV2 escaping is centralized and non-negotiable
 

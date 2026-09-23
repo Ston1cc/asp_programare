@@ -7,18 +7,40 @@
 // Conexiunea e un singleton la nivel de modul, refolosit intre invocari cat timp
 // instanta serverless ramane "calda" (Vercel Node functions pastreaza procesul intre
 // cereri, spre deosebire de Edge runtime) -- deschidem o singura conexiune per instanta,
-// nu una per request.
+// nu una per request. Daca `connect()` esueaza, `clientPromise` e resetat la null ca
+// urmatorul apel sa poata reincerca -- altfel o promisiune respinsa ar ramane in cache
+// pana moare instanta, iar orice comanda ulterioara ar esua instant fara sa mai incerce.
 //
-// Doua tipuri de inregistrari, ambele cu TTL ca sa nu se acumuleze la nesfarsit date
+// Trei tipuri de inregistrari, toate cu TTL ca sa nu se acumuleze la nesfarsit date
 // personale ale unor straini:
-//   person:<chatId>   -> { idnp, seriaAndNumber, issueDate } (JSON), TTL lung (90 zile)
-//   pending:<chatId>  -> { step, idnp?, seriaAndNumber? } (JSON), TTL scurt (10 minute --
-//                        daca cineva abandoneaza conversatia la jumatate, nu ramane blocat)
+//   person:<chatId>   -> { idnp, seriaAndNumber, issueDate } (criptat), 90 zile
+//   pending:<chatId>  -> { step, idnp?, seriaAndNumber? } (criptat), 10 minute -- daca
+//                        cineva abandoneaza conversatia la jumatate, nu ramane blocat
+//   access:<chatId>   -> { status: 'pending'|'approved'|'denied', name, username,
+//                        requestedAt } (criptat) -- cererea unui chat strain de a folosi
+//                        botul, aprobata/respinsa manual de proprietar (vezi CLAUDE.md)
+//
+// Criptare: orice JSON scris prin setJSON/getJSON e cifrat AES-256-GCM cu USER_DATA_KEY
+// (32 bytes, base64, separata de REDIS_URL) inainte sa ajunga in Redis -- cine are doar
+// connection string-ul Redis nu poate citi datele. Un record cu format necunoscut/vechi
+// (in clar, dinainte de aceasta schimbare) e tratat ca inexistent, nu ca eroare.
 
 import { createClient } from 'redis';
+import { randomBytes, createCipheriv, createDecipheriv } from 'node:crypto';
 
 const PERSON_TTL_SECONDS = 60 * 60 * 24 * 90;
 const PENDING_TTL_SECONDS = 60 * 10;
+const ACCESS_REQUEST_TTL_SECONDS = 60 * 60 * 24 * 30;
+const ACCESS_DENIED_TTL_SECONDS = 60 * 60 * 24 * 30;
+const ACCESS_APPROVED_TTL_SECONDS = 60 * 60 * 24 * 90;
+
+// Rate-limit per chat (protejeaza useri unii de altii -- vezi CLAUDE.md, cooldown-ul
+// vechi era global si nedrept intre useri diferiti) si global (protejeaza ASP de volum
+// total daca mai multi useri verifica simultan). Folosesc chei simple Redis, nu JSON --
+// nu contin date personale, deci nu trec prin criptare.
+const RATE_LIMIT_CHAT_WINDOW_SECONDS = 45;
+const RATE_LIMIT_GLOBAL_WINDOW_SECONDS = 60;
+const RATE_LIMIT_GLOBAL_MAX = 10;
 
 let clientPromise = null;
 
@@ -31,27 +53,81 @@ function getClient() {
           'botului sa isi salveze datele.',
       );
     }
-    const client = createClient({ url });
+    const client = createClient({
+      url,
+      socket: {
+        connectTimeout: 5000,
+        // Renunta rapid in loc sa tina un request Telegram agatat pana la timeout-ul
+        // functiei -- webhook-ul are oricum un mesaj de fallback ("indisponibil") cand
+        // Redis pica.
+        reconnectStrategy: (retries) => (retries > 2 ? new Error('Redis indisponibil dupa 3 incercari') : retries * 300),
+      },
+    });
     client.on('error', (err) => console.error('Redis error:', err.message));
-    clientPromise = client.connect().then(() => client);
+    clientPromise = client.connect().then(
+      () => client,
+      (err) => {
+        clientPromise = null;
+        throw err;
+      },
+    );
   }
   return clientPromise;
+}
+
+// --- Criptare AES-256-GCM ------------------------------------------------------------
+
+let cachedKey = null;
+function getEncryptionKey() {
+  if (cachedKey) return cachedKey;
+  const raw = process.env.USER_DATA_KEY;
+  if (!raw) {
+    throw new Error('Lipseste USER_DATA_KEY -- necesara pentru criptarea datelor personale in Redis.');
+  }
+  const key = Buffer.from(raw, 'base64');
+  if (key.length !== 32) {
+    throw new Error(`USER_DATA_KEY trebuie sa fie 32 bytes in base64 (are ${key.length}).`);
+  }
+  cachedKey = key;
+  return key;
+}
+
+function encrypt(value) {
+  const key = getEncryptionKey();
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
+  const ciphertext = Buffer.concat([cipher.update(JSON.stringify(value), 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `v1:${iv.toString('base64')}:${tag.toString('base64')}:${ciphertext.toString('base64')}`;
+}
+
+/** Intoarce null pentru orice record ilizibil (format vechi/necunoscut, cheie gresita, coruptie) -- tratat ca inexistent, nu ca eroare fatala. */
+function decrypt(raw) {
+  const parts = raw.split(':');
+  if (parts.length !== 4 || parts[0] !== 'v1') return null;
+  const [, ivB64, tagB64, dataB64] = parts;
+  try {
+    const key = getEncryptionKey();
+    const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(ivB64, 'base64'));
+    decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
+    const plain = Buffer.concat([decipher.update(Buffer.from(dataB64, 'base64')), decipher.final()]);
+    return JSON.parse(plain.toString('utf8'));
+  } catch (err) {
+    console.error('Eroare la decriptare (tratat ca inexistent):', err.message);
+    return null;
+  }
 }
 
 async function getJSON(key) {
   const client = await getClient();
   const raw = await client.get(key);
   if (raw == null) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
+  return decrypt(raw);
 }
 
 async function setJSON(key, value, ttlSeconds) {
   const client = await getClient();
-  await client.set(key, JSON.stringify(value), { EX: ttlSeconds });
+  await client.set(key, encrypt(value), { EX: ttlSeconds });
 }
 
 async function del(key) {
@@ -81,4 +157,69 @@ export async function setPendingRegistration(chatId, state) {
 
 export async function clearPendingRegistration(chatId) {
   await del(`pending:${chatId}`);
+}
+
+// --- Acces: cererea unui chat strain de a folosi botul, aprobata manual de proprietar --
+
+export async function getAccess(chatId) {
+  return getJSON(`access:${chatId}`);
+}
+
+/**
+ * Creeaza cererea de acces DOAR daca nu exista deja un record (SET NX) -- altfel un
+ * strain ar putea bombarda proprietarul cu notificari repetate doar retrimitand acelasi
+ * mesaj. Intoarce true daca s-a creat acum (deci merita notificat proprietarul), false
+ * daca exista deja un record (pending/approved/denied).
+ */
+export async function requestAccessIfNew(chatId, meta) {
+  const client = await getClient();
+  const value = encrypt({ status: 'pending', ...meta, requestedAt: new Date().toISOString() });
+  const created = await client.set(`access:${chatId}`, value, { EX: ACCESS_REQUEST_TTL_SECONDS, NX: true });
+  return created === 'OK';
+}
+
+export async function setAccessStatus(chatId, status) {
+  const ttl = status === 'approved' ? ACCESS_APPROVED_TTL_SECONDS : ACCESS_DENIED_TTL_SECONDS;
+  const existing = (await getAccess(chatId)) ?? {};
+  await setJSON(`access:${chatId}`, { ...existing, status }, ttl);
+}
+
+export async function deleteAccess(chatId) {
+  await del(`access:${chatId}`);
+}
+
+/** Toate chat-urile cu acces aprobat -- pentru /utilizatori. SCAN (non-blocant), nu KEYS. */
+export async function listApprovedAccess() {
+  const client = await getClient();
+  const result = [];
+  // scanIterator produce un ARRAY de chei per pagina (nu o cheie per iteratie) -- vezi
+  // node_modules/@redis/client/dist/lib/client/index.d.ts.
+  for await (const keys of client.scanIterator({ MATCH: 'access:*', COUNT: 100 })) {
+    for (const key of keys) {
+      const record = await getJSON(key);
+      if (record?.status === 'approved') {
+        result.push({ chatId: key.slice('access:'.length), name: record.name, username: record.username });
+      }
+    }
+  }
+  return result;
+}
+
+// --- Rate limiting per chat + global (fara date personale, fara criptare) -----------
+
+/** true daca acest chat NU a verificat in ultima fereastra (si marcheaza acum ca a facut-o). */
+export async function tryAcquireRateLimit(chatId, windowSeconds = RATE_LIMIT_CHAT_WINDOW_SECONDS) {
+  const client = await getClient();
+  const set = await client.set(`rl:chat:${chatId}`, '1', { EX: windowSeconds, NX: true });
+  return set === 'OK';
+}
+
+/** Incrementeaza contorul global pe fereastra curenta; true daca s-a depasit pragul. */
+export async function isGlobalRateLimited(max = RATE_LIMIT_GLOBAL_MAX) {
+  const client = await getClient();
+  const bucket = Math.floor(Date.now() / (RATE_LIMIT_GLOBAL_WINDOW_SECONDS * 1000));
+  const key = `rl:global:${bucket}`;
+  const count = await client.incr(key);
+  if (count === 1) await client.expire(key, RATE_LIMIT_GLOBAL_WINDOW_SECONDS);
+  return count > max;
 }

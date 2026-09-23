@@ -20,6 +20,8 @@ const ALL_COMMANDS = [
 
 const OWNER_COMMANDS = [
   { command: 'acum', description: 'Verifică live cele mai apropiate date la examen' },
+  { command: 'utilizatori', description: 'Listează persoanele cu acces aprobat' },
+  { command: 'revoca', description: 'Revocă accesul unei persoane (revoca <chat_id>)' },
   { command: 'help', description: 'Lista comenzilor disponibile' },
 ];
 

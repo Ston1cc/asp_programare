@@ -5,50 +5,83 @@
 
 import { API_BASE } from './config.js';
 
-const RETRY_DELAYS_MS = [2000, 4000, 8000];
+const DEFAULT_RETRY_DELAYS_MS = [2000, 4000, 8000];
+const DEFAULT_TIMEOUT_MS = 15_000;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchWithRetry(url, options, label) {
+/**
+ * `fetchOptions` = { retryDelays, timeoutMs }, optional -- lasat implicit pentru
+ * verificarea periodica (comportament neschimbat), suprascris de live.js cu valori mai
+ * mici pentru raspunsul "/acum" (constrans de maxDuration: 30 pe Vercel, vezi
+ * api/telegram-webhook.js). Fiecare incercare are timeout propriu (AbortSignal) -- fara
+ * el, un fetch agatat ar bloca requestul pana la limita platformei, nu doar pana la
+ * timeout-ul nostru.
+ */
+async function fetchWithRetry(url, options, label, fetchOptions = {}) {
+  const { retryDelays = DEFAULT_RETRY_DELAYS_MS, timeoutMs = DEFAULT_TIMEOUT_MS } = fetchOptions;
   let lastError;
-  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+  for (let attempt = 0; attempt <= retryDelays.length; attempt++) {
     try {
-      const res = await fetch(url, options);
+      const res = await fetch(url, { ...options, signal: AbortSignal.timeout(timeoutMs) });
       if (!res.ok) {
         throw new Error(`${label}: HTTP ${res.status} la ${url}`);
       }
       return res;
     } catch (err) {
       lastError = err;
-      if (attempt < RETRY_DELAYS_MS.length) {
-        await sleep(RETRY_DELAYS_MS[attempt]);
+      if (attempt < retryDelays.length) {
+        await sleep(retryDelays[attempt]);
       }
     }
   }
-  throw new Error(`${label} a esuat dupa ${RETRY_DELAYS_MS.length + 1} incercari: ${lastError.message}`);
+  throw new Error(`${label} a esuat dupa ${retryDelays.length + 1} incercari: ${lastError.message}`);
 }
 
-async function getServiceId(servicePath) {
-  const url = `${API_BASE}/apo-request/get-service/${servicePath}`;
-  const res = await fetchWithRetry(url, undefined, `get-service/${servicePath}`);
-  const text = (await res.text()).trim();
-  // Contract: raspunsul e un hash hex simplu, nu JSON. Daca site-ul incepe sa intoarca
-  // JSON sau un mesaj de eroare deghizat in 200, hash-ul n-ar mai respecta formatul asta.
-  if (!/^[a-f0-9]{40,80}$/i.test(text)) {
-    throw new Error(`get-service/${servicePath}: raspuns neasteptat (nu pare service ID): "${text.slice(0, 100)}"`);
-  }
-  return text;
+// `cache`, optional (un Map creat per-request de apelant) -- memoizeaza PROMISIUNEA (nu
+// doar rezultatul), ca doua categorii care cer in paralel acelasi servicePath/serviceId
+// sa nu declanseze doua fetch-uri identice. Doar 4 servicePath-uri distincte exista
+// printre cele 8 categorii monitorizate (vezi config.js), deci fara cache /acum ar cere
+// de doua ori acelasi service ID pentru fiecare pereche obisnuit/urgent pe 3 locatii.
+
+async function getServiceId(servicePath, fetchOptions, cache) {
+  const cacheKey = `service:${servicePath}`;
+  if (cache?.has(cacheKey)) return cache.get(cacheKey);
+  const promise = (async () => {
+    const url = `${API_BASE}/apo-request/get-service/${servicePath}`;
+    const res = await fetchWithRetry(url, undefined, `get-service/${servicePath}`, fetchOptions);
+    const text = (await res.text()).trim();
+    // Contract: raspunsul e un hash hex simplu, nu JSON. Daca site-ul incepe sa intoarca
+    // JSON sau un mesaj de eroare deghizat in 200, hash-ul n-ar mai respecta formatul asta.
+    if (!/^[a-f0-9]{40,80}$/i.test(text)) {
+      throw new Error(`get-service/${servicePath}: raspuns neasteptat (nu pare service ID): "${text.slice(0, 100)}"`);
+    }
+    return text;
+  })();
+  if (cache) cache.set(cacheKey, promise);
+  return promise;
 }
 
-async function getLocationId(serviceId, locationName) {
-  const url = `${API_BASE}/qmatic/locations/${serviceId}`;
-  const res = await fetchWithRetry(url, undefined, 'qmatic/locations');
-  const locations = await res.json();
-  if (!Array.isArray(locations)) {
-    throw new Error('qmatic/locations: raspuns neasteptat (nu e array)');
-  }
+async function getLocations(serviceId, fetchOptions, cache) {
+  const cacheKey = `locations:${serviceId}`;
+  if (cache?.has(cacheKey)) return cache.get(cacheKey);
+  const promise = (async () => {
+    const url = `${API_BASE}/qmatic/locations/${serviceId}`;
+    const res = await fetchWithRetry(url, undefined, 'qmatic/locations', fetchOptions);
+    const locations = await res.json();
+    if (!Array.isArray(locations)) {
+      throw new Error('qmatic/locations: raspuns neasteptat (nu e array)');
+    }
+    return locations;
+  })();
+  if (cache) cache.set(cacheKey, promise);
+  return promise;
+}
+
+async function getLocationId(serviceId, locationName, fetchOptions, cache) {
+  const locations = await getLocations(serviceId, fetchOptions, cache);
   const match = locations.find((loc) => loc.name === locationName);
   if (!match) {
     const names = locations.map((loc) => loc.name).join(', ');
@@ -57,7 +90,7 @@ async function getLocationId(serviceId, locationName) {
   return match.id;
 }
 
-async function getDates({ serviceId, locationId, person }) {
+async function getDates({ serviceId, locationId, person, fetchOptions }) {
   const url = `${API_BASE}/qmatic/dates`;
   const res = await fetchWithRetry(
     url,
@@ -73,6 +106,7 @@ async function getDates({ serviceId, locationId, person }) {
       }),
     },
     'qmatic/dates',
+    fetchOptions,
   );
   const dates = await res.json();
   if (!Array.isArray(dates)) {
@@ -87,10 +121,13 @@ async function getDates({ serviceId, locationId, person }) {
  * Arunca eroare in loc sa intoarca un rezultat gol daca oricare pas al lantului esueaza
  * sau are un contract neasteptat -- altfel o schimbare de API ar fi raportata gresit
  * ca "nu mai sunt locuri".
+ *
+ * `fetchOptions`/`cache` optionale -- vezi comentariile de mai sus; omise, comportamentul
+ * e identic cu dinainte (folosit de src/index.js, verificarea periodica).
  */
-export async function fetchCategoryDates(category, person) {
-  const serviceId = await getServiceId(category.servicePath);
-  const locationId = await getLocationId(serviceId, category.locationName);
-  const dates = await getDates({ serviceId, locationId, person });
+export async function fetchCategoryDates(category, person, { fetchOptions, cache } = {}) {
+  const serviceId = await getServiceId(category.servicePath, fetchOptions, cache);
+  const locationId = await getLocationId(serviceId, category.locationName, fetchOptions, cache);
+  const dates = await getDates({ serviceId, locationId, person, fetchOptions });
   return dates;
 }
