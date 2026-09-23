@@ -4,16 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-No build step, linter, or test suite — this is a small zero-dependency Node script pair.
-Validation is done by running against the real ASP API and a real Telegram bot.
+No build step, linter, or test suite. Validation is done by running against the real ASP
+API and a real Telegram bot.
 
 ```bash
 cp .env.example .env             # fill in IDNP, doc series/issue date, Telegram bot token + chat id
 node --env-file=.env src/index.js     # run the periodic checker once (npm run check)
 ```
 
-Node ≥20.6 is required (`--env-file` and native `fetch` are used directly; there is no
-`npm install` step — `package.json` has no `dependencies`).
+Node ≥20.6 is required (`--env-file` and native `fetch` are used directly). The periodic
+checker (`src/index.js`) is still zero-dependency — no `npm install` needed to run it.
+`redis` is the project's one real dependency, added only for the webhook's
+`src/userStore.js` (letting other people use the bot); `index.js` never imports it.
 
 The webhook function (`api/telegram-webhook.js`) can't be run locally the same way — it's
 a Vercel serverless function. Test it by curling the deployed URL directly (see README's
@@ -32,8 +34,12 @@ because they have fundamentally different latency requirements.
   per day (heartbeat, gated on local hour ≥ 8 in Europe/Chisinau).
 - **`api/telegram-webhook.js`** — on-demand command responder, deployed as a Vercel
   serverless function and registered with Telegram via `setWebhook`. When the configured
-  chat sends a recognized command (`/acum`, `/live`, `/status`, `/check`), Telegram POSTs
-  the update directly here — no polling, no state, response in ~1-2s. Verifies the
+  chat sends a recognized command (`/acum`, `/live`, `/status`, `/check`, `/help`, plus
+  `/inregistrare`/`/start`/`/sterge` for non-owner chats — see below), Telegram POSTs
+  the update directly here — no polling, no state, response in ~1-2s. `/help` is checked
+  **before** the pending-registration check in the non-owner branch — it's the escape
+  hatch out of confusion, so it has to work even mid-registration, not get swallowed by
+  step validation. Verifies the
   `X-Telegram-Bot-Api-Secret-Token` header against `TELEGRAM_WEBHOOK_SECRET` before doing
   anything (the endpoint is public by nature; this is the only thing stopping a stranger
   who finds the URL from triggering a live fetch). Deployed as a separate Vercel project
@@ -86,16 +92,20 @@ because they have fundamentally different latency requirements.
   Markdown tables — only monospaced code blocks preserve column alignment.
 - **`src/telegram.js`** — minimal Telegram Bot API client (`sendMessage`; also
   `getUpdates`, unused now that the responder is webhook-based, kept in case a polling
-  fallback is ever needed again). Also exports three persistent reply-keyboards
-  (`ACUM_KEYBOARD`, `REGISTERED_KEYBOARD`, `REGISTER_KEYBOARD`) — `sendTelegramMessage`
-  defaults to `ACUM_KEYBOARD` so `index.js`'s calls (owner only) need no changes; the
-  webhook passes the other two explicitly depending on chat state.
+  fallback is ever needed again; `setMyCommands`, registers the native Telegram command
+  menu — see `scripts/set-commands.mjs`). Also exports three persistent reply-keyboards
+  (`ACUM_KEYBOARD`, `REGISTERED_KEYBOARD`, `REGISTER_KEYBOARD`), each showing only the
+  commands that actually apply to that chat's state, plus `/help` on all three —
+  `sendTelegramMessage` defaults to `ACUM_KEYBOARD` so `index.js`'s calls (owner only)
+  need no changes; the webhook passes the other two explicitly depending on chat state.
 - **`src/registration.js`** + **`src/userStore.js`** — let people other than the bot's
   owner use it too, *in their own name* (own IDNP/doc series/issue date), not the
   owner's. Only the webhook touches these — `index.js` (periodic checker) still only
   ever runs as the owner, from `.env`, unchanged. `registration.js` is the pure 3-step
   conversation state machine (IDNP → seria → data eliberării, each validated and
-  re-prompted on bad input); `userStore.js` persists the per-`chat_id` result plus the
+  re-prompted on bad input) plus `buildHelpMessage`, which adapts its command list to
+  whether the chat is the owner, an already-registered third party, or someone who still
+  needs to register; `userStore.js` persists the per-`chat_id` result plus the
   in-progress step (any standard Redis, via the `redis` npm client — the one dependency
   the project has, used only by the webhook; `index.js`'s zero-dependency checker never
   imports this module). Two TTLs: 90 days for a
@@ -103,6 +113,11 @@ because they have fundamentally different latency requirements.
   conversation doesn't wedge that chat forever). `/sterge` lets anyone erase their own
   stored data on demand — deliberate, since this stores real government ID numbers
   belonging to people who are not the project's owner.
+- **`scripts/set-commands.mjs`** — one-off script (`npm run set-commands`) that registers
+  the command list in Telegram's native "Menu" button next to the text field, with a
+  reduced list scoped just to the owner's chat (no `/inregistrare`/`/sterge` — meaningless
+  for someone whose data comes from `.env`, not Redis). Re-run only when the command list
+  changes, not on every deploy.
 
 ### Why MarkdownV2 escaping is centralized and non-negotiable
 
