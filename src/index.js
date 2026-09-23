@@ -24,7 +24,7 @@ async function main() {
   const { messages, errors, allFailed, categoryResults } = await runCheck({ config, store, failureThreshold: 3 });
 
   for (const msg of messages) {
-    await sendTelegramMessage(config.telegram, msg);
+    await sendTelegramMessage(config.telegram, msg.text, msg.keyboard);
   }
 
   console.log(

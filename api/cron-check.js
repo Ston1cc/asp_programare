@@ -81,7 +81,7 @@ export default async function handler(req, res) {
     });
 
     for (const msg of messages) {
-      await sendTelegramMessage(cfg.telegram, msg);
+      await sendTelegramMessage(cfg.telegram, msg.text, msg.keyboard);
     }
 
     res.status(200).json({
