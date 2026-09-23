@@ -19,6 +19,7 @@ import {
   getLocalDateString,
   getLocalParts,
 } from './format.js';
+import { BOOKING_KEYBOARD } from './telegram.js';
 
 const HEARTBEAT_HOUR = 7;
 const HEARTBEAT_MINUTE = 30;
@@ -35,6 +36,10 @@ const HEARTBEAT_MINUTE = 30;
  * `failureThreshold` -- numarul de rulari consecutive esuate inainte de alerta de esec;
  * fiecare apelant alege pragul potrivit cadentei lui (index.js: rulari rare, manuale;
  * cron-check.js: la ~10 min, deci un prag mai mare ca sa nu alerteze la un blip trecator).
+ *
+ * Intoarce `messages` ca { text, keyboard? } -- doar alerta de zile noi/mai devreme
+ * primeste BOOKING_KEYBOARD (butonul "Programează-te"); heartbeat-ul si alerta de esec
+ * raman fara `keyboard`, ca apelantul sa foloseasca tastatura lui implicita (persistenta).
  */
 export async function runCheck({
   config,
@@ -75,7 +80,7 @@ export async function runCheck({
   const allFailed = errors.length === categories.length;
   state.consecutiveFailures = allFailed ? state.consecutiveFailures + 1 : 0;
   if (state.consecutiveFailures === failureThreshold) {
-    messages.push(buildFailureMessage(errors, failureThreshold));
+    messages.push({ text: buildFailureMessage(errors, failureThreshold) });
   }
 
   // Prima rulare vreodata -- vezi comentariul din vechiul index.js: fara asta, daca ea
@@ -88,7 +93,7 @@ export async function runCheck({
     const { earlierDays, newLaterDays, nextState: computedState } = computeDiff(state, categoryResults);
     nextState = computedState;
     const alertMsg = buildAlertMessage({ earlierDays, newLaterDays });
-    if (alertMsg) messages.push(alertMsg);
+    if (alertMsg) messages.push({ text: alertMsg, keyboard: BOOKING_KEYBOARD });
   }
 
   // --- Heartbeat zilnic ---
@@ -98,10 +103,10 @@ export async function runCheck({
     localHour * 60 + localMinute >= HEARTBEAT_HOUR * 60 + HEARTBEAT_MINUTE &&
     nextState.lastHeartbeatDate !== todayLocal;
   if (heartbeatDue && categoryResults.length > 0) {
-    messages.push(buildHeartbeatMessage({ categoryResults, now }));
+    messages.push({ text: buildHeartbeatMessage({ categoryResults, now }) });
     nextState.lastHeartbeatDate = todayLocal;
   } else if (isFirstEverRun && categoryResults.length > 0) {
-    messages.push(buildHeartbeatMessage({ categoryResults, now, title: 'Monitor pornit — prima citire' }));
+    messages.push({ text: buildHeartbeatMessage({ categoryResults, now, title: 'Monitor pornit — prima citire' }) });
   }
 
   nextState.lastRun = now.toISOString();

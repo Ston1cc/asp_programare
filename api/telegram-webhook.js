@@ -26,6 +26,7 @@ import {
   ACUM_KEYBOARD,
   REGISTERED_KEYBOARD,
   REGISTER_KEYBOARD,
+  BOOKING_KEYBOARD,
 } from '../src/telegram.js';
 import { escapeMarkdownV2 } from '../src/format.js';
 import {
@@ -87,7 +88,10 @@ async function runOwnerLiveCheck(botToken, chatId, person, keyboard) {
   }
   ownerLastCheckAt = now;
   const { message: reply } = await buildLiveReply(person);
-  await replyTo(botToken, chatId, reply, keyboard);
+  // BOOKING_KEYBOARD (inline), nu `keyboard` -- tastatura persistenta de sub campul de
+  // text nu dispare doar pentru ca acest mesaj foloseste un alt reply_markup, vezi
+  // comentariul de la BOOKING_KEYBOARD in telegram.js.
+  await replyTo(botToken, chatId, reply, BOOKING_KEYBOARD);
 }
 
 async function runUserLiveCheck(botToken, chatId, person, keyboard) {
@@ -107,7 +111,7 @@ async function runUserLiveCheck(botToken, chatId, person, keyboard) {
     return;
   }
   const { message: reply } = await buildLiveReply(person);
-  await replyTo(botToken, chatId, reply, keyboard);
+  await replyTo(botToken, chatId, reply, BOOKING_KEYBOARD);
 
   // Reinnoieste TTL-ul (vezi userStore.js) -- best-effort, dupa ce raspunsul a plecat deja:
   // un chat activ nu trebuie scos din sistem doar pentru ca 90 de zile au trecut de la

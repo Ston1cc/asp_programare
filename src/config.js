@@ -11,6 +11,12 @@ export const API_BASE = 'https://eservicii.gov.md/asp/dimtcca/api';
 // mesaje langa sfarsitul lui septembrie).
 export const HORIZON_DAYS = 90;
 
+// Punctul de intrare pe portal pentru fluxul APO01 (programare examen) -- e un SPA Blazor,
+// deci nu exista un link "adanc" catre pasul de programare din afara aplicatiei; userul
+// tot trebuie sa navigheze manual de aici. Folosit de butonul "Programează-te" de pe
+// alerte (vezi telegram.js) -- schimba aici daca ASP publica vreodata un link direct.
+export const BOOKING_URL = 'https://eservicii.gov.md/asp/dimtcca/';
+
 // Toate locatiile monitorizate sunt in Chisinau -- folosit ca titlu generic in mesaje,
 // filiala exacta apare in eticheta fiecarei categorii (vezi CATEGORIES mai jos).
 export const CITY_NAME = 'Chișinău';

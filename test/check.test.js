@@ -42,7 +42,7 @@ test('runCheck: prima rulare (baseline) trimite mesajul de pornire, nu o alerta'
   assert.equal(allFailed, false);
   assert.equal(categoryResults.length, 1);
   assert.equal(messages.length, 1);
-  assert.match(messages[0], /Monitor pornit/);
+  assert.match(messages[0].text, /Monitor pornit/);
   assert.equal(store.current.initialized.c1, true);
   assert.equal(store.current.earliest.c1, '2026-09-25');
 });
@@ -66,7 +66,8 @@ test('runCheck: o zi mai devreme la a doua rulare produce alerta 🔥', async ()
   });
 
   assert.equal(messages.length, 1);
-  assert.match(messages[0], /devreme/);
+  assert.match(messages[0].text, /devreme/);
+  assert.equal(messages[0].keyboard.inline_keyboard[0][0].text, '📝 Programează-te');
 });
 
 test('runCheck: dupa ora heartbeat-ului trimite rezumatul zilnic o singura data pe zi', async () => {
@@ -88,7 +89,8 @@ test('runCheck: dupa ora heartbeat-ului trimite rezumatul zilnic o singura data 
     fetchDates: async () => [{ date: '2026-09-25', timeSlots: 3 }],
   });
   assert.equal(first.messages.length, 1);
-  assert.match(first.messages[0], /Situație/);
+  assert.match(first.messages[0].text, /Situație/);
+  assert.equal(first.messages[0].keyboard, undefined); // heartbeat-ul nu are butonul de programare
 
   const second = await runCheck({
     config: CONFIG,
@@ -112,7 +114,7 @@ test('runCheck: alerta de esec apare exact cand streak-ul atinge failureThreshol
 
   const r2 = await runCheck({ config: CONFIG, store, categories: CATEGORIES, fetchDates: failing, failureThreshold: 2 });
   assert.equal(r2.messages.length, 1); // 2/2 -- acum trimite
-  assert.match(r2.messages[0], /nu poate citi calendarul/);
+  assert.match(r2.messages[0].text, /nu poate citi calendarul/);
 
   const r3 = await runCheck({ config: CONFIG, store, categories: CATEGORIES, fetchDates: failing, failureThreshold: 2 });
   assert.equal(r3.messages.length, 0); // nu retrimite la fiecare rulare ulterioara
