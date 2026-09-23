@@ -10,5 +10,8 @@
   "scripts": {
     "start": "node src/index.js",
     "check": "node --env-file=.env src/index.js"
+  },
+  "dependencies": {
+    "redis": "^6.2.1"
   }
 }

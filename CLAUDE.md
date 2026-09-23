@@ -96,8 +96,9 @@ because they have fundamentally different latency requirements.
   ever runs as the owner, from `.env`, unchanged. `registration.js` is the pure 3-step
   conversation state machine (IDNP → seria → data eliberării, each validated and
   re-prompted on bad input); `userStore.js` persists the per-`chat_id` result plus the
-  in-progress step (Upstash Redis over its REST API via plain `fetch`, no npm package —
-  same zero-dependency style as `asp.js`/`telegram.js`). Two TTLs: 90 days for a
+  in-progress step (any standard Redis, via the `redis` npm client — the one dependency
+  the project has, used only by the webhook; `index.js`'s zero-dependency checker never
+  imports this module). Two TTLs: 90 days for a
   confirmed person, 10 minutes for an abandoned mid-registration state (so a half-finished
   conversation doesn't wedge that chat forever). `/sterge` lets anyone erase their own
   stored data on demand — deliberate, since this stores real government ID numbers

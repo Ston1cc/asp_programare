@@ -1,7 +1,13 @@
 // Stocare per-chat pentru persoanele care NU sunt proprietarul botului -- fiecare isi da
 // propriile date (IDNP/serie/data eliberarii) prin conversatie, ca sa poata interoga ASP
-// in numele lor, nu al proprietarului. Backend: Upstash Redis, prin REST API + fetch nativ
-// (fara pachet npm, la fel ca restul proiectului -- vezi asp.js/telegram.js).
+// in numele lor, nu al proprietarului. Backend: orice Redis standard (testat cu Redis
+// Cloud), prin `redis` (client TCP oficial) -- NU o dependenta pe care o are si
+// verificarea periodica (src/index.js), doar webhook-ul.
+//
+// Conexiunea e un singleton la nivel de modul, refolosit intre invocari cat timp
+// instanta serverless ramane "calda" (Vercel Node functions pastreaza procesul intre
+// cereri, spre deosebire de Edge runtime) -- deschidem o singura conexiune per instanta,
+// nu una per request.
 //
 // Doua tipuri de inregistrari, ambele cu TTL ca sa nu se acumuleze la nesfarsit date
 // personale ale unor straini:
@@ -9,44 +15,32 @@
 //   pending:<chatId>  -> { step, idnp?, seriaAndNumber? } (JSON), TTL scurt (10 minute --
 //                        daca cineva abandoneaza conversatia la jumatate, nu ramane blocat)
 
+import { createClient } from 'redis';
+
 const PERSON_TTL_SECONDS = 60 * 60 * 24 * 90;
 const PENDING_TTL_SECONDS = 60 * 10;
 
-function upstashConfig(env = process.env) {
-  const url = env.UPSTASH_REDIS_REST_URL;
-  const token = env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) {
-    throw new Error(
-      'Lipsesc UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN -- necesare pentru ca ' +
-        'persoane in afara de proprietarul botului sa isi salveze datele.',
-    );
-  }
-  return { url, token };
-}
+let clientPromise = null;
 
-async function redisCommand(command) {
-  const { url, token } = upstashConfig();
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${token}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(command),
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Upstash ${command[0]}: HTTP ${res.status} -- ${body}`);
+function getClient() {
+  if (!clientPromise) {
+    const url = process.env.REDIS_URL;
+    if (!url) {
+      throw new Error(
+        'Lipseste REDIS_URL -- necesar pentru ca persoane in afara de proprietarul ' +
+          'botului sa isi salveze datele.',
+      );
+    }
+    const client = createClient({ url });
+    client.on('error', (err) => console.error('Redis error:', err.message));
+    clientPromise = client.connect().then(() => client);
   }
-  const data = await res.json();
-  if (data.error) {
-    throw new Error(`Upstash ${command[0]}: ${data.error}`);
-  }
-  return data.result;
+  return clientPromise;
 }
 
 async function getJSON(key) {
-  const raw = await redisCommand(['GET', key]);
+  const client = await getClient();
+  const raw = await client.get(key);
   if (raw == null) return null;
   try {
     return JSON.parse(raw);
@@ -56,11 +50,13 @@ async function getJSON(key) {
 }
 
 async function setJSON(key, value, ttlSeconds) {
-  await redisCommand(['SET', key, JSON.stringify(value), 'EX', String(ttlSeconds)]);
+  const client = await getClient();
+  await client.set(key, JSON.stringify(value), { EX: ttlSeconds });
 }
 
 async function del(key) {
-  await redisCommand(['DEL', key]);
+  const client = await getClient();
+  await client.del(key);
 }
 
 export async function getPerson(chatId) {
