@@ -34,25 +34,58 @@ export const REGISTER_KEYBOARD = {
   is_persistent: true,
 };
 
+/** Apel generic la Telegram Bot API -- restul functiilor din fisier sunt construite pe el. */
+export async function callTelegram(botToken, method, payload) {
+  const res = await fetch(`https://api.telegram.org/bot${botToken}/${method}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Telegram ${method} a esuat: HTTP ${res.status} — ${body}`);
+  }
+  const data = await res.json();
+  if (!data.ok) {
+    throw new Error(`Telegram ${method}: raspuns neasteptat: ${JSON.stringify(data).slice(0, 200)}`);
+  }
+  return data.result;
+}
+
+/** Intoarce ultimul mesaj trimis (util cand apelantul are nevoie de message_id, ex: notificarea de aprobare). */
 export async function sendTelegramMessage({ botToken, chatId }, text, replyMarkup = ACUM_KEYBOARD) {
   const chunks = splitMessage(text);
+  let last;
   for (const chunk of chunks) {
-    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: chunk,
-        parse_mode: 'MarkdownV2',
-        disable_web_page_preview: true,
-        reply_markup: replyMarkup,
-      }),
+    last = await callTelegram(botToken, 'sendMessage', {
+      chat_id: chatId,
+      text: chunk,
+      parse_mode: 'MarkdownV2',
+      disable_web_page_preview: true,
+      reply_markup: replyMarkup,
     });
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Telegram sendMessage a esuat: HTTP ${res.status} — ${body}`);
-    }
   }
+  return last;
+}
+
+/** Confirma apasarea unui buton inline (altfel Telegram arata "loading" pe buton pana la timeout). */
+export async function answerCallbackQuery(botToken, callbackQueryId, text) {
+  await callTelegram(botToken, 'answerCallbackQuery', { callback_query_id: callbackQueryId, text });
+}
+
+/** Editeaza un mesaj deja trimis -- folosit ca sa marcheze decizia (Aprobat/Respins) pe mesajul de cerere. */
+export async function editMessageText(botToken, chatId, messageId, text) {
+  await callTelegram(botToken, 'editMessageText', { chat_id: chatId, message_id: messageId, text, parse_mode: 'MarkdownV2' });
+}
+
+/** Sterge un mesaj -- folosit ca sa scoatem din chat mesajele in care userul a scris IDNP/serie/data. */
+export async function deleteMessage(botToken, chatId, messageId) {
+  await callTelegram(botToken, 'deleteMessage', { chat_id: chatId, message_id: messageId });
+}
+
+/** Scoate botul dintr-un grup -- botul nu trebuie folosit decat in chat privat (vezi CLAUDE.md). */
+export async function leaveChat(botToken, chatId) {
+  await callTelegram(botToken, 'leaveChat', { chat_id: chatId });
 }
 
 /**
@@ -84,17 +117,5 @@ export async function getTelegramUpdates({ botToken }, offset) {
  * restul lumii, vezi scripts/set-commands.mjs).
  */
 export async function setMyCommands(botToken, commands, scope) {
-  const res = await fetch(`https://api.telegram.org/bot${botToken}/setMyCommands`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(scope ? { commands, scope } : { commands }),
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Telegram setMyCommands a esuat: HTTP ${res.status} — ${body}`);
-  }
-  const data = await res.json();
-  if (!data.ok) {
-    throw new Error(`Telegram setMyCommands: raspuns neasteptat: ${JSON.stringify(data).slice(0, 200)}`);
-  }
+  await callTelegram(botToken, 'setMyCommands', scope ? { commands, scope } : { commands });
 }

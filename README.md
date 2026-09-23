@@ -44,12 +44,19 @@ periodică. (Varianta inițială, cu polling la 5 minute prin GitHub Actions, a 
 înlocuită — un ciclu de verificare avea un plafon fizic de ~5 minute, uneori mai mult.)
 
 **Alte persoane decât proprietarul** pot folosi același bot, dar în numele lor, nu al
-proprietarului: prima dată când scriu (`/acum`, `/inregistrare` sau `/start`), botul le
-cere pas cu pas propriul IDNP, seria buletinului și data eliberării, printr-o
-conversație scurtă (`src/registration.js`). Datele sunt salvate per `chat_id` în Redis
-(`src/userStore.js`, cu TTL — 90 zile pentru date confirmate, 10 minute pentru o
-înregistrare abandonată la jumătate), niciodată alături de `.env`-ul proprietarului.
-`/sterge` șterge datele salvate ale oricui le cere, oricând.
+proprietarului — însă doar dupã ce proprietarul le aprobă manual accesul. Prima dată
+când scriu botului, primesc un mesaj că cererea a fost trimisă proprietarului; acesta
+primește o notificare cu nume/@username/chat_id și două butoane, ✅ Aprobă / ❌ Respinge.
+Abia după aprobare pot folosi `/inregistrare` ca să introducă pas cu pas propriul IDNP,
+seria buletinului și data eliberării, printr-o conversație scurtă (`src/registration.js`)
+— mesajele cu aceste date sunt șterse din chat imediat după ce botul le citește, ca să nu
+rămână la vedere în istoric. Datele sunt salvate per `chat_id` în Redis, **criptate**
+(AES-256-GCM, cheie separată de conexiunea la Redis — vezi `USER_DATA_KEY` mai jos), cu
+TTL — 90 zile pentru date confirmate, 10 minute pentru o înregistrare abandonată la
+jumătate. `/sterge` șterge datele salvate ale oricui le cere, oricând. Proprietarul poate
+oricând vedea cine are acces (`/utilizatori`) sau revoca accesul cuiva (`/revoca <chat_id>`).
+Botul iese singur din orice grup în care e adăugat — e gândit doar pentru chat privat,
+ca nimeni altcineva să nu vadă datele scrise de altcineva.
 
 Monitorul **doar citește**. Nu plătește, nu rezervă, nu depune nicio cerere.
 
@@ -85,12 +92,20 @@ Proiect Vercel separat (`asp-programare-webhook`), cu propriile environment vari
 |---|---|
 | `TELEGRAM_WEBHOOK_SECRET` | șir random; Telegram îl trimite înapoi pe fiecare cerere ca să dovedească faptul că e chiar el, nu oricine a ghicit URL-ul |
 | `REDIS_URL` | doar dacă vrei ca *alte persoane* (nu proprietarul) să poată folosi botul — vezi mai jos |
+| `USER_DATA_KEY` | obligatoriu împreună cu `REDIS_URL` — cheia cu care sunt criptate datele altor persoane înainte să ajungă în Redis |
 
 `REDIS_URL` e un connection string standard (`redis://default:PAROLA@host:port`) — orice
-provider merge (Redis Cloud, Upstash în mod TCP, self-hosted). Fără el, proprietarul
-(`TELEGRAM_CHAT_ID`) poate folosi botul normal, dar orice alt chat rămâne fără niciun
-răspuns (eroarea e doar în logurile Vercel, ca să nu spargem convenția "niciodată 5xx
-către Telegram").
+provider merge (Redis Cloud, Upstash în mod TCP, self-hosted); preferă `rediss://` (TLS)
+dacă provider-ul îl oferă. Fără `REDIS_URL`, proprietarul (`TELEGRAM_CHAT_ID`) poate
+folosi botul normal, dar orice alt chat rămâne fără niciun răspuns util (eroarea e doar
+în logurile Vercel, ca să nu spargem convenția "niciodată 5xx către Telegram").
+
+`USER_DATA_KEY` trebuie să fie 32 bytes random, codați base64:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+Dacă o schimbi ulterior, datele deja salvate în Redis devin ilizibile (tratate ca
+inexistente) — persoanele afectate ar trebui să se reînregistreze.
 
 Pași de configurare (o singură dată):
 1. Deploy `api/telegram-webhook.js` + `src/*.js` pe Vercel (funcție serverless, fără build).
@@ -100,6 +115,9 @@ Pași de configurare (o singură dată):
    `secret_token` = valoarea din `TELEGRAM_WEBHOOK_SECRET`.
 4. `npm run set-commands` (o singură dată, sau de câte ori se schimbă lista de comenzi) —
    înregistrează comenzile în meniul nativ Telegram.
+5. La [@BotFather](https://t.me/BotFather) → `/setjoingroups` → **Disable** — botul nu e
+   gândit pentru grupuri (vezi mai sus); fără acest pas, botul tot iese singur din orice
+   grup în care ajunge, dar dezactivarea din BotFather împiedică să fie adăugat deloc.
 
 Orice modificare la codul webhook-ului necesită un redeploy manual pe Vercel (nu e legat
 de push-uri pe GitHub în configurația curentă).

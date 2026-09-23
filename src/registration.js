@@ -13,10 +13,23 @@ import { escapeMarkdownV2 } from './format.js';
 export const REGISTER_COMMANDS = new Set(['/inregistrare', '/start']);
 export const DELETE_COMMAND = '/sterge';
 export const HELP_COMMAND = '/help';
+export const LIST_USERS_COMMAND = '/utilizatori';
+export const REVOKE_COMMAND = '/revoca';
+
+// Cifra de control IDNP: ponderi 7,3,1 repetate pe primele 12 cifre, suma mod 10 trebuie
+// sa egaleze cifra 13. Filtreaza typo-uri (cifre transpuse etc.) inainte sa ajunga la ASP.
+function idnpChecksumValid(digits) {
+  const weights = [7, 3, 1];
+  let sum = 0;
+  for (let i = 0; i < 12; i++) {
+    sum += Number(digits[i]) * weights[i % 3];
+  }
+  return sum % 10 === Number(digits[12]);
+}
 
 function validateIdnp(text) {
   const v = text.trim();
-  return /^\d{13}$/.test(v) ? v : null;
+  return /^\d{13}$/.test(v) && idnpChecksumValid(v) ? v : null;
 }
 
 function validateSeria(text) {
@@ -52,17 +65,20 @@ function promptIdnp() {
   return `Scrie *${escapeMarkdownV2('IDNP-ul tau (13 cifre).')}*`;
 }
 function promptSeria() {
-  return `Acum scrie *${escapeMarkdownV2('seria și numărul buletinului (ex: EA0039316).')}*`;
+  return `Acum scrie *${escapeMarkdownV2('seria și numărul buletinului (ex: AB1234567).')}*`;
 }
 function promptData() {
-  return `Și *${escapeMarkdownV2('data eliberării buletinului (ex: 16.05.2025).')}*`;
+  return `Și *${escapeMarkdownV2('data eliberării buletinului (ex: 01.01.2020).')}*`;
 }
 
 export function startRegistrationPrompt() {
   const intro = escapeMarkdownV2(
     'Nu te cunosc încă. Ca să verific ASP în numele tău (nu al proprietarului botului), ' +
-      'am nevoie de 3 date — nu se salvează nicăieri altundeva decât aici, poți oricând ' +
-      'să le ștergi cu /sterge.',
+      'am nevoie de 3 date. Sunt criptate și stocate 90 de zile pe un server Redis extern ' +
+      '(nu în acest chat) — proprietarul botului are acces tehnic la ele, dar mesajele ' +
+      'tale cu datele sunt șterse din chat imediat după ce le citesc, ca să nu rămână la ' +
+      'vedere. Le trimit doar către eservicii.gov.md, ca să interoghez calendarul în ' +
+      'numele tău. Poți oricând să le ștergi cu /sterge.',
   );
   return {
     pending: { step: 'idnp' },
@@ -73,16 +89,28 @@ export function startRegistrationPrompt() {
 /**
  * Avanseaza un pas din inregistrare. `pending` = starea curenta ({ step, ...raspunsuri
  * anterioare }), `text` = mesajul brut trimis de user pentru pasul curent.
- * Intoarce { reply, pending } daca mai sunt pasi, sau { reply, person } daca s-a
- * terminat (gata de salvat).
+ * Intoarce { reply, pending } daca mai sunt pasi, { reply, person } daca s-a terminat
+ * (gata de salvat), sau { reply, cancelled: true } daca userul a scris o comanda in loc
+ * de raspunsul asteptat (altfel ar fi validata gresit ca "IDNP invalid" etc. -- vezi
+ * CLAUDE.md, problema semnalata la audit).
  */
 export function advanceRegistration(pending, text) {
+  const trimmed = text.trim();
+  if (trimmed.startsWith('/')) {
+    return {
+      reply: escapeMarkdownV2(
+        'Înregistrare anulată — scrie din nou comanda dacă ai vrut altceva (ex: /acum, /inregistrare).',
+      ),
+      cancelled: true,
+    };
+  }
+
   const step = pending.step;
 
   if (step === 'idnp') {
     const idnp = validateIdnp(text);
     if (!idnp) {
-      const err = escapeMarkdownV2('IDNP invalid — trebuie 13 cifre. Încearcă din nou.');
+      const err = escapeMarkdownV2('IDNP invalid — trebuie 13 cifre, cu cifra de control corectă. Încearcă din nou.');
       return { reply: `❌ ${err}\n\n${promptIdnp()}`, pending };
     }
     return { reply: promptSeria(), pending: { step: 'seria', idnp } };
@@ -91,7 +119,7 @@ export function advanceRegistration(pending, text) {
   if (step === 'seria') {
     const seria = validateSeria(text);
     if (!seria) {
-      const err = escapeMarkdownV2('Format invalid — litere + cifre, fără spații (ex: EA0039316). Încearcă din nou.');
+      const err = escapeMarkdownV2('Format invalid — litere + cifre, fără spații (ex: AB1234567). Încearcă din nou.');
       return { reply: `❌ ${err}\n\n${promptSeria()}`, pending };
     }
     return { reply: promptData(), pending: { ...pending, step: 'dataEliberarii', seria } };
@@ -113,6 +141,39 @@ export function advanceRegistration(pending, text) {
   return startRegistrationPrompt();
 }
 
+// --- Acces: mesajele pentru fluxul de aprobare manuala de catre proprietar -----------
+//
+// Orice chat strain trebuie aprobat explicit de proprietar INAINTE sa i se ceara IDNP-ul
+// -- vezi CLAUDE.md. Aceste functii construiesc doar textul; starea (`access:<chatId>`
+// in Redis) e gestionata in userStore.js, orchestrarea in api/telegram-webhook.js.
+
+export const ACCESS_PENDING_MESSAGE = `⏳ ${escapeMarkdownV2('Cererea ta e încă în așteptare — proprietarul trebuie s-o aprobe.')}`;
+export const ACCESS_DENIED_MESSAGE = `❌ ${escapeMarkdownV2('Cererea ta de acces a fost respinsă.')}`;
+export const ACCESS_REQUESTED_MESSAGE = `👋 ${escapeMarkdownV2('Cererea ta de acces a fost trimisă proprietarului botului. Revino după ce e aprobată.')}`;
+
+/** Mesajul trimis PROPRIETARULUI cand apare o cerere noua, cu butoane Aproba/Respinge atasate separat. */
+export function formatAccessRequestText({ chatId, name, username }) {
+  const label = username ? `${name || '(fără nume)'} (@${username})` : name || `chat ${chatId}`;
+  return [
+    `🔔 *${escapeMarkdownV2('Cerere nouă de acces la bot')}*`,
+    '',
+    escapeMarkdownV2(label),
+    escapeMarkdownV2(`chat_id: ${chatId}`),
+  ].join('\n');
+}
+
+/** Randul adaugat la mesajul de mai sus dupa ce proprietarul a decis (edit in Telegram). */
+export function buildAccessDecisionLine(status) {
+  return status === 'approved' ? `✅ ${escapeMarkdownV2('Aprobat')}` : `❌ ${escapeMarkdownV2('Respins')}`;
+}
+
+/** Mesajul trimis SOLICITANTULUI dupa decizia proprietarului. */
+export function buildAccessDecisionMessage(status) {
+  return status === 'approved'
+    ? `✅ ${escapeMarkdownV2('Ai fost aprobat! Scrie /inregistrare ca să-ți introduci datele.')}`
+    : ACCESS_DENIED_MESSAGE;
+}
+
 function cmdLine(cmd, desc) {
   return `*${escapeMarkdownV2(cmd)}* — ${escapeMarkdownV2(desc)}`;
 }
@@ -122,13 +183,19 @@ function cmdLine(cmd, desc) {
  * aplica (proprietarul n-are ce face cu /inregistrare sau /sterge, datele lui vin din
  * .env, nu din Redis).
  */
-export function buildHelpMessage({ isOwner, hasPerson }) {
+export function buildHelpMessage({ isOwner, hasPerson, needsApproval }) {
   const lines = [`🤖 *${escapeMarkdownV2('Comenzi disponibile:')}*`, ''];
   if (isOwner) {
     lines.push(cmdLine('/acum', 'verifică live cele mai apropiate date la examen'));
+    lines.push(cmdLine('/utilizatori', 'listează persoanele cu acces aprobat'));
+    lines.push(cmdLine('/revoca <chat_id>', 'revocă accesul unei persoane'));
   } else if (hasPerson) {
     lines.push(cmdLine('/acum', 'verifică live cele mai apropiate date, cu datele tale salvate'));
     lines.push(cmdLine('/sterge', 'șterge datele tale salvate (IDNP/serie/dată)'));
+  } else if (needsApproval) {
+    // Nu aratam /inregistrare aici -- inainte de aprobare, comanda doar retrimite/
+    // reaminteste cererea de acces, nu porneste inregistrarea (vezi CLAUDE.md).
+    lines.push(escapeMarkdownV2('Scrie orice mesaj ca să trimiți o cerere de acces proprietarului botului.'));
   } else {
     lines.push(cmdLine('/inregistrare', 'introdu IDNP/serie/dată ca să poți folosi botul în numele tău'));
   }
