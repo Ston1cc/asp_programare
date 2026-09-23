@@ -6,7 +6,7 @@ import { CATEGORIES, loadConfig } from './config.js';
 import { fetchCategoryDates } from './asp.js';
 import { loadState, saveState, computeDiff } from './state.js';
 import {
-  filterCurrentAndNextMonth,
+  filterWithinHorizon,
   buildAlertMessage,
   buildHeartbeatMessage,
   buildFailureMessage,
@@ -31,7 +31,7 @@ async function main() {
   for (const category of CATEGORIES) {
     try {
       const dates = await fetchCategoryDates(category, config.person);
-      const filtered = filterCurrentAndNextMonth(dates, now);
+      const filtered = filterWithinHorizon(dates, now);
       categoryResults.push({ category, dates: filtered });
     } catch (err) {
       console.error(`[${category.key}] esuat: ${err.message}`);
