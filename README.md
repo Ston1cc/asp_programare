@@ -32,12 +32,22 @@ liberă per categorie și trimite:
 
 Scrii `/acum` (sau `/live`, `/status`, `/check`) botului și primești răspuns **instant**
 (1-2 secunde), cu cele mai apropiate date la fiecare categorie, citite live, nu din cache.
+O tastatură persistentă cu butonul `/acum` e atașată la fiecare mesaj trimis de bot, ca
+să nu fie nevoie să-l scrii de mână de fiecare dată.
 
 Arhitectural, asta e un webhook Telegram — nu polling. `api/telegram-webhook.js`, deployat
 ca funcție serverless pe Vercel, e înregistrat direct la Telegram prin `setWebhook`, deci
 Telegram trimite mesajul direct acolo de îndată ce-l scrii, fără nicio verificare
 periodică. (Varianta inițială, cu polling la 5 minute prin GitHub Actions, a fost
 înlocuită — un ciclu de verificare avea un plafon fizic de ~5 minute, uneori mai mult.)
+
+**Alte persoane decât proprietarul** pot folosi același bot, dar în numele lor, nu al
+proprietarului: prima dată când scriu (`/acum`, `/inregistrare` sau `/start`), botul le
+cere pas cu pas propriul IDNP, seria buletinului și data eliberării, printr-o
+conversație scurtă (`src/registration.js`). Datele sunt salvate per `chat_id` în Upstash
+Redis (`src/userStore.js`, cu TTL — 90 zile pentru date confirmate, 10 minute pentru o
+înregistrare abandonată la jumătate), niciodată alături de `.env`-ul proprietarului.
+`/sterge` șterge datele salvate ale oricui le cere, oricând.
 
 Monitorul **doar citește**. Nu plătește, nu rezervă, nu depune nicio cerere.
 
@@ -72,6 +82,13 @@ Proiect Vercel separat (`asp-programare-webhook`), cu propriile environment vari
 | Env var | Descriere |
 |---|---|
 | `TELEGRAM_WEBHOOK_SECRET` | șir random; Telegram îl trimite înapoi pe fiecare cerere ca să dovedească faptul că e chiar el, nu oricine a ghicit URL-ul |
+| `UPSTASH_REDIS_REST_URL` | doar dacă vrei ca *alte persoane* (nu proprietarul) să poată folosi botul — vezi mai jos |
+| `UPSTASH_REDIS_REST_TOKEN` | idem |
+
+Ultimele două vin dintr-un database Upstash Redis (gratuit, [upstash.com](https://upstash.com) —
+tab "REST API" din pagina database-ului). Fără ele, proprietarul (`TELEGRAM_CHAT_ID`)
+poate folosi botul normal, dar orice alt chat rămâne fără niciun răspuns (eroarea e doar
+în logurile Vercel, ca să nu spargem convenția "niciodată 5xx către Telegram").
 
 Pași de configurare (o singură dată):
 1. Deploy `api/telegram-webhook.js` + `src/*.js` pe Vercel (funcție serverless, fără build).
@@ -93,7 +110,9 @@ src/
 ├─ config.js    categorii+locații monitorizate + validare env
 ├─ state.js     persistență + diff (inclusiv logica de "cea mai devreme zi")
 ├─ format.js    mesaje Telegram + utilitare de dată (fus Europe/Chisinau)
-└─ telegram.js  client Telegram Bot API
+├─ telegram.js  client Telegram Bot API + tastaturi persistente
+├─ registration.js  flux conversațional (IDNP/serie/dată) pentru alte persoane decât proprietarul
+└─ userStore.js     persistență per chat_id (Upstash Redis) pentru datele altor persoane
 api/
 └─ telegram-webhook.js   funcție serverless (Vercel) — răspunde la "/acum"
 state/slots.json   stare persistată de verificarea periodică, comisă înapoi în repo de CI
