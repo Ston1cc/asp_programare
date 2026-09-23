@@ -3,7 +3,14 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { daysUntil, buildDateRanges, escapeMarkdownV2, getLocalDateString } from '../src/format.js';
+import {
+  daysUntil,
+  buildDateRanges,
+  escapeMarkdownV2,
+  getLocalDateString,
+  filterWithinHorizon,
+  buildPracticTable,
+} from '../src/format.js';
 
 test('daysUntil calculeaza diferenta corecta in zile calendaristice', () => {
   const now = new Date('2026-10-01T12:00:00Z'); // ~15:00 Europe/Chisinau (UTC+3 vara)
@@ -51,4 +58,44 @@ test('buildDateRanges sorteaza intrarile inainte de a grupa', () => {
 test('getLocalDateString foloseste fusul Europe/Chisinau, nu UTC', () => {
   // 2026-10-01T22:30:00Z e deja 2026-10-02 in Chisinau (UTC+3).
   assert.equal(getLocalDateString(new Date('2026-10-01T22:30:00Z')), '2026-10-02');
+});
+
+test('filterWithinHorizon pastreaza zile din intreg orizontul de 90 de zile, nu doar luna curenta+urmatoarea', () => {
+  const now = new Date('2026-09-23T12:00:00Z');
+  const dates = [
+    { date: '2026-09-22', timeSlots: 1 }, // ieri -- exclus
+    { date: '2026-09-23', timeSlots: 2 }, // azi -- inclus
+    { date: '2026-11-15', timeSlots: 3 }, // peste 2 luni -- vechiul filtru il pierdea
+    { date: '2027-01-01', timeSlots: 4 }, // peste orizont -- exclus
+  ];
+  const kept = filterWithinHorizon(dates, now, 90).map((d) => d.date);
+  assert.deepEqual(kept, ['2026-09-23', '2026-11-15']);
+});
+
+test('filterWithinHorizon respecta limita exacta a orizontului (inclusiv)', () => {
+  const now = new Date('2026-01-01T12:00:00Z');
+  const dates = [
+    { date: '2026-01-31', timeSlots: 1 }, // exact +30 -- inclus
+    { date: '2026-02-01', timeSlots: 1 }, // +31 -- exclus
+  ];
+  const kept = filterWithinHorizon(dates, now, 30).map((d) => d.date);
+  assert.deepEqual(kept, ['2026-01-31']);
+});
+
+test('buildPracticTable taie la 25 de randuri si raporteaza cate au fost ascunse', () => {
+  const dates = Array.from({ length: 30 }, (_, i) => ({
+    date: `2026-10-${String(i + 1).padStart(2, '0')}`,
+    timeSlots: 1,
+  }));
+  const groups = [{ locationAbbr: 'A', display: { dates } }];
+  const table = buildPracticTable(groups);
+  assert.equal(table.text.split('\n').length, 1 + 25); // header + 25 randuri
+  assert.equal(table.hiddenCount, 5);
+  assert.equal(table.lastShownDate, '2026-10-25');
+});
+
+test('buildPracticTable nu taie nimic sub 25 de zile', () => {
+  const dates = [{ date: '2026-10-01', timeSlots: 1 }, { date: '2026-10-02', timeSlots: 2 }];
+  const table = buildPracticTable([{ locationAbbr: 'A', display: { dates } }]);
+  assert.equal(table.hiddenCount, 0);
 });

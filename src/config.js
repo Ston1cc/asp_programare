@@ -4,6 +4,13 @@
 
 export const API_BASE = 'https://eservicii.gov.md/asp/dimtcca/api';
 
+// ASP intoarce zile libere pe ~3 luni inainte -- 90 e orizontul folosit peste tot ca sa nu
+// pierdem date reale (vezi filterWithinHorizon in format.js). Vechea varianta filtra doar
+// pe "luna curenta + urmatoarea", ceea ce ascundea zile reale spre finalul orizontului
+// (ex: o filiala practica ce are prima zi libera abia in noiembrie disparea complet din
+// mesaje langa sfarsitul lui septembrie).
+export const HORIZON_DAYS = 90;
+
 // Toate locatiile monitorizate sunt in Chisinau -- folosit ca titlu generic in mesaje,
 // filiala exacta apare in eticheta fiecarei categorii (vezi CATEGORIES mai jos).
 export const CITY_NAME = 'Chișinău';

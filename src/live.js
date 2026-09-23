@@ -4,7 +4,7 @@
 
 import { CATEGORIES } from './config.js';
 import { fetchCategoryDates } from './asp.js';
-import { filterCurrentAndNextMonth, buildLiveNowMessage, escapeMarkdownV2 } from './format.js';
+import { filterWithinHorizon, buildLiveNowMessage, escapeMarkdownV2 } from './format.js';
 
 // Orice varianta scurta, fara sa fim pretentiosi cu userul care scrie de pe telefon.
 export const TRIGGER_COMMANDS = new Set(['/acum', '/live', '/status', '/check']);
@@ -28,7 +28,7 @@ export async function buildLiveReply(person, now = new Date()) {
   settled.forEach((result, i) => {
     const category = CATEGORIES[i];
     if (result.status === 'fulfilled') {
-      categoryResults.push({ category, dates: filterCurrentAndNextMonth(result.value, now) });
+      categoryResults.push({ category, dates: filterWithinHorizon(result.value, now) });
     } else {
       errors.push([category.label, result.reason.message]);
     }

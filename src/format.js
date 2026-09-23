@@ -1,6 +1,6 @@
 // Formatare mesaje Telegram (MarkdownV2) + utilitare de date in fusul Europe/Chisinau.
 
-import { CITY_NAME } from './config.js';
+import { CITY_NAME, HORIZON_DAYS } from './config.js';
 
 const TIMEZONE = 'Europe/Chisinau';
 const TELEGRAM_MAX_LEN = 4096;
@@ -42,16 +42,18 @@ export function getLocalDateString(now = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-/** Filtreaza datele "YYYY-MM-DD" la luna curenta + urmatoarea, calculate in Europe/Chisinau. */
-export function filterCurrentAndNextMonth(dates, now = new Date()) {
-  const { year, month } = getLocalParts(now);
-  const y = Number(year);
-  const m = Number(month); // 1-12
-  const nextM = m === 12 ? 1 : m + 1;
-  const nextY = m === 12 ? y + 1 : y;
-  const curPrefix = `${y}-${String(m).padStart(2, '0')}`;
-  const nextPrefix = `${nextY}-${String(nextM).padStart(2, '0')}`;
-  return dates.filter((d) => d.date.startsWith(curPrefix) || d.date.startsWith(nextPrefix));
+/**
+ * Filtreaza datele "YYYY-MM-DD" la fereastra [azi, azi+days], calculata in Europe/Chisinau.
+ * Inlocuieste vechiul filtru pe "luna curenta + urmatoarea", care ascundea zile reale
+ * spre finalul orizontului -- vezi HORIZON_DAYS in config.js. Foloseste daysUntil (aceeasi
+ * logica de zile calendaristice ca restul mesajelor), nu comparatie de string pe prefix
+ * de luna, ca fereastra sa fie corecta indiferent unde cade "azi" in luna.
+ */
+export function filterWithinHorizon(dates, now = new Date(), days = HORIZON_DAYS) {
+  return dates.filter((d) => {
+    const diff = daysUntil(d.date, now);
+    return diff >= 0 && diff <= days;
+  });
 }
 
 function dateParts(dateStr) {
@@ -321,18 +323,29 @@ export function formatRangeLabel(range) {
 
 // --- Tabel monospace: zile x filiale, pentru proba practica ------------------------
 
+// Plafon de randuri -- fara el, orizontul de 90 de zile (HORIZON_DAYS) ar putea produce
+// un tabel suficient de lung incat splitMessage sa-l taie la mijloc, stricand blocul
+// ``` ``` (Markdown neinchis => Telegram raspunde 400). 25 de zile acopera confortabil
+// intervalul apropiat, care e si cel relevant.
+const PRACTIC_TABLE_MAX_ROWS = 25;
+
 /**
  * `-` = filiala nu are deschisa acea zi; `?` = zi deschisa dar nr. de locuri neafisat.
  * Randat intr-un bloc ``` ``` -- Telegram pastreaza spatiile, deci coloanele raman
- * aliniate doar daca folosim un font monospace (garantat de blocul de cod).
+ * aliniate doar daca folosim un font monospace (garantat de blocul de cod). Intoarce
+ * { text, hiddenCount } -- hiddenCount > 0 cand tabelul a fost taiat la
+ * PRACTIC_TABLE_MAX_ROWS, ca apelantul sa poata adauga o nota "+N zile dupa ...".
  */
 export function buildPracticTable(practicGroups) {
   const dateSet = new Set();
   for (const g of practicGroups) {
     for (const d of g.display?.dates ?? []) dateSet.add(d.date);
   }
-  const dates = [...dateSet].sort();
-  if (dates.length === 0) return null;
+  const allDates = [...dateSet].sort();
+  if (allDates.length === 0) return null;
+
+  const hiddenCount = Math.max(0, allDates.length - PRACTIC_TABLE_MAX_ROWS);
+  const dates = allDates.slice(0, PRACTIC_TABLE_MAX_ROWS);
 
   const dateColWidth = Math.max('Data'.length, ...dates.map((d) => formatDateCompact(d).length));
   const colWidths = practicGroups.map((g) => Math.max(g.locationAbbr.length, 1));
@@ -351,7 +364,7 @@ export function buildPracticTable(practicGroups) {
     return [formatDateCompact(date).padEnd(dateColWidth), ...cells].join(' ');
   });
 
-  return [header, ...rows].join('\n');
+  return { text: [header, ...rows].join('\n'), hiddenCount, lastShownDate: dates[dates.length - 1] };
 }
 
 /**
@@ -447,10 +460,13 @@ export function buildHeartbeatMessage({ categoryResults, now = new Date(), title
     const table = buildPracticTable(practicGroups);
     if (table) {
       lines.push('```');
-      lines.push(table);
+      lines.push(table.text);
       lines.push('```');
       lines.push(escapeMarkdownV2('-  = nicio dată afișată'));
       lines.push(escapeMarkdownV2('?  = neafișat încă'));
+      if (table.hiddenCount > 0) {
+        lines.push(escapeMarkdownV2(`+${table.hiddenCount} zile după ${formatDateHuman(table.lastShownDate)}`));
+      }
     } else {
       lines.push(escapeMarkdownV2('fără zile libere'));
     }
