@@ -39,7 +39,7 @@ test('advanceRegistration anuleaza cand userul scrie o comanda in loc de raspuns
   assert.equal(result.cancelled, true);
 });
 
-test('advanceRegistration parcurge cei 3 pasi pana la un person complet', () => {
+test('advanceRegistration parcurge cei 4 pasi pana la un person complet', () => {
   const { pending: p1 } = startRegistrationPrompt();
 
   const step1 = advanceRegistration(p1, VALID_IDNP);
@@ -50,11 +50,31 @@ test('advanceRegistration parcurge cei 3 pasi pana la un person complet', () => 
   assert.equal(step2.pending.seria, 'AB1234567'); // normalizata uppercase, fara spatii
 
   const step3 = advanceRegistration(step2.pending, '01.01.2020');
-  assert.deepEqual(step3.person, {
+  assert.equal(step3.pending.step, 'vehicle');
+  assert.equal(step3.pending.issueDate, '2020-01-01T00:00:00');
+
+  const step4 = advanceRegistration(step3.pending, '🔧 Manuală');
+  assert.deepEqual(step4.person, {
     idnp: VALID_IDNP,
     seriaAndNumber: 'AB1234567',
     issueDate: '2020-01-01T00:00:00',
+    vehicle: 'BMechanical',
   });
+});
+
+test('advanceRegistration accepta scurtaturi text pentru vehicul, nu doar butoanele', () => {
+  const pending = { step: 'vehicle', idnp: VALID_IDNP, seria: 'AB1234567', issueDate: '2020-01-01T00:00:00' };
+  assert.equal(advanceRegistration(pending, 'a').person.vehicle, 'BAutomatic');
+  assert.equal(advanceRegistration(pending, 'automata').person.vehicle, 'BAutomatic');
+  assert.equal(advanceRegistration(pending, 'm').person.vehicle, 'BMechanical');
+  assert.equal(advanceRegistration(pending, 'mecanica').person.vehicle, 'BMechanical');
+});
+
+test('advanceRegistration re-prompteaza la pasul vehicle pe input neinteligibil', () => {
+  const pending = { step: 'vehicle', idnp: VALID_IDNP, seria: 'AB1234567', issueDate: '2020-01-01T00:00:00' };
+  const result = advanceRegistration(pending, 'nu stiu');
+  assert.equal(result.pending.step, 'vehicle');
+  assert.equal(result.person, undefined);
 });
 
 test('advanceRegistration re-prompteaza pe input invalid, fara sa avanseze pasul', () => {

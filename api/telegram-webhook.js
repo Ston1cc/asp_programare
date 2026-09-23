@@ -26,6 +26,7 @@ import {
   ACUM_KEYBOARD,
   REGISTERED_KEYBOARD,
   REGISTER_KEYBOARD,
+  VEHICLE_KEYBOARD,
   BOOKING_KEYBOARD,
 } from '../src/telegram.js';
 import { escapeMarkdownV2 } from '../src/format.js';
@@ -283,7 +284,10 @@ async function handleGuestMessage(cfg, message, rawText, text) {
       await replyTo(botToken, chatId, result.reply, REGISTERED_KEYBOARD);
     } else {
       await setPendingRegistration(chatId, result.pending);
-      await replyTo(botToken, chatId, result.reply, REGISTER_KEYBOARD);
+      // Pasul "vehicle" foloseste o tastatura dedicata (butoane Manuală/Automată) -- vezi
+      // VEHICLE_KEYBOARD in telegram.js -- orice alt pas ramane pe REGISTER_KEYBOARD.
+      const stepKeyboard = result.pending.step === 'vehicle' ? VEHICLE_KEYBOARD : REGISTER_KEYBOARD;
+      await replyTo(botToken, chatId, result.reply, stepKeyboard);
     }
     return;
   }

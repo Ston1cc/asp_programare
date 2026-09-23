@@ -70,6 +70,18 @@ function promptSeria() {
 function promptData() {
   return `Și *${escapeMarkdownV2('data eliberării buletinului (ex: 01.01.2020).')}*`;
 }
+function promptVehicle() {
+  return `Ultimul pas -- la proba practică, cutie *${escapeMarkdownV2('manuală')}* sau *${escapeMarkdownV2('automată')}*?`;
+}
+
+// Accepta atat butonul (🔧 Manuală / ⚙️ Automată) cat si scurtaturi scrise de mana
+// (m, manual, mecanica / a, automat) -- vezi VEHICLE_KEYBOARD in telegram.js.
+function validateVehicle(text) {
+  const v = text.trim().toLowerCase();
+  if (v === 'm' || v.includes('manual') || v.includes('mecanic')) return 'BMechanical';
+  if (v === 'a' || v.includes('automat')) return 'BAutomatic';
+  return null;
+}
 
 export function startRegistrationPrompt() {
   const intro = escapeMarkdownV2(
@@ -131,9 +143,18 @@ export function advanceRegistration(pending, text) {
       const err = escapeMarkdownV2('Dată invalidă — folosește DD.MM.YYYY sau YYYY-MM-DD. Încearcă din nou.');
       return { reply: `❌ ${err}\n\n${promptData()}`, pending };
     }
+    return { reply: promptVehicle(), pending: { ...pending, step: 'vehicle', issueDate } };
+  }
+
+  if (step === 'vehicle') {
+    const vehicle = validateVehicle(text);
+    if (!vehicle) {
+      const err = escapeMarkdownV2('N-am înțeles — scrie „manuală” sau „automată” (ori apasă un buton).');
+      return { reply: `❌ ${err}\n\n${promptVehicle()}`, pending };
+    }
     return {
       reply: `✅ ${escapeMarkdownV2('Gata! Poți verifica acum cu /acum.')}`,
-      person: { idnp: pending.idnp, seriaAndNumber: pending.seria, issueDate },
+      person: { idnp: pending.idnp, seriaAndNumber: pending.seria, issueDate: pending.issueDate, vehicle },
     };
   }
 
