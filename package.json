@@ -5,12 +5,13 @@
   "type": "module",
   "description": "Monitorizeaza zilele libere pentru examenul auto la ASP si trimite notificari pe Telegram",
   "engines": {
-    "node": ">=20.6"
+    "node": ">=22"
   },
   "scripts": {
     "start": "node src/index.js",
     "check": "node --env-file=.env src/index.js",
-    "set-commands": "node --env-file=.env scripts/set-commands.mjs"
+    "set-commands": "node --env-file=.env scripts/set-commands.mjs",
+    "test": "node --test"
   },
   "dependencies": {
     "redis": "^6.2.1"
