@@ -112,12 +112,21 @@ because they have fundamentally different latency requirements.
   date/timezone utilities (fixed to Europe/Chisinau regardless of runner locale). Always
   shows "obișnuit" and "urgent" as separate labeled lines — a deliberate user choice, not
   an oversight to "fix" by collapsing them. They usually do diverge in practice (urgent is
-  often earlier — see the `config.js` note on the `servicePath` bug this used to mask);
-  `liveGroupLines` in `format.js` renders a compact single-date block when they coincide
-  and an explicit `obișnuit: … · urgent: …` comparison line when they don't, so both cases
-  render correctly without assuming either. Renders the multi-location practic comparison
-  as a fixed-width table inside a ` ``` ` code block, since Telegram does not render
-  Markdown tables — only monospaced code blocks preserve column alignment.
+  often earlier — see the `config.js` note on the `servicePath` bug this used to mask).
+  **`liveGroupLines`** (the `/acum` reply) renders every `obișnuit`/`urgent` line with the
+  exact same shape — `eticheta: **dată** · peste N zile · X locuri` (or "fără zile
+  libere") — regardless of whether the two dates coincide, diverge, or one of them has no
+  free days at all; location (practic only) is always its own bold header line above,
+  never inlined into a date line. An earlier version collapsed the two variants onto one
+  shared line when their dates matched, showed a bare date-only comparison line with no
+  days-until/slots when they diverged, and silently dropped a variant entirely when it had
+  zero free dates — three different shapes for what's conceptually the same information,
+  flagged as inconsistent after the security audit and rewritten to always use the one
+  shape. Renders the multi-location practic comparison as a fixed-width table inside a
+  ` ``` ` code block (in the heartbeat/summary message, via the separate
+  `buildClosestDatesLines`/`closestLinesForGroup` path — unaffected by the `/acum`
+  rewrite above), since Telegram does not render Markdown tables — only monospaced code
+  blocks preserve column alignment.
 - **`src/telegram.js`** — minimal Telegram Bot API client built on one generic
   `callTelegram(botToken, method, payload)` helper (POSTs to
   `api.telegram.org/bot<token>/<method>`, throws on a non-2xx or `{ok: false}`).

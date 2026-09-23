@@ -205,10 +205,17 @@ function buildClosestDatesLines(groups, now) {
 
 // --- Sectiunea "Cele mai apropiate date", varianta compacta pentru mesajul LIVE ---
 //
-// Diferenta fata de buildClosestDatesLines: cand obisnuit si urgent au aceeasi zi
-// (cazul normal), apar pe UN singur bloc -- data o singura data, apoi un rand indentat
-// cu ambele numere de locuri -- in loc sa repete data de doua ori. Zilele cu putine
-// locuri primesc un semnal ⚠️, ca sa sara in ochi fara sa cauti prin mesaj.
+// Un singur format de linie, mereu -- indiferent daca obisnuit si urgent cad pe aceeasi
+// zi, pe zile diferite, sau daca unul dintre ei n-are nicio zi libera. O versiune mai
+// veche colapsa cele doua variante intr-un rand comun cand coincideau, si le compara pe
+// un rand separat, fara zile-pana-la/locuri, cand divergeau -- trei forme diferite de
+// citit in acelasi mesaj (semnalat de user dupa un audit de securitate care a atins si
+// codul asta). Acum fiecare varianta (obisnuit/urgent) e mereu propriul rand, cu aceeasi
+// structura: `eticheta: **data** · peste N zile · X locuri` (sau "fără zile libere").
+// Locatia (doar pentru practic) e mereu un rand-antet separat, bold, niciodata inline pe
+// randul unei variante -- elimina ambiguitatea "de ce apare uneori pe randul datei, alteori
+// deasupra". Zilele cu putine locuri primesc un semnal ⚠️, ca sa sara in ochi fara sa cauti
+// prin mesaj.
 
 const LOW_SLOTS_THRESHOLD = 2;
 
@@ -217,48 +224,33 @@ function slotsWithWarning(timeSlots) {
   return timeSlots != null && timeSlots <= LOW_SLOTS_THRESHOLD ? `⚠️ ${label}` : label;
 }
 
-function liveDateHeaderLine(date, now, { withLocation, locationShort }) {
-  const parts = [`*${escapeMarkdownV2(formatDateHuman(date))}*`];
-  if (withLocation) parts.push(escapeMarkdownV2(locationShort));
-  parts.push(escapeMarkdownV2(`peste ${daysWord(daysUntil(date, now))}`));
-  return parts.join(' · ');
+/** O linie completa pentru o singura varianta (obisnuit SAU urgent) -- vezi comentariul de mai sus. */
+function liveVariantLine(label, entry, now) {
+  const labelText = escapeMarkdownV2(`${label}:`);
+  if (!entry) {
+    return `${labelText} ${escapeMarkdownV2('fără zile libere')}`;
+  }
+  const parts = [
+    `*${escapeMarkdownV2(formatDateHuman(entry.date))}*`,
+    escapeMarkdownV2(`peste ${daysWord(daysUntil(entry.date, now))}`),
+    slotsWithWarning(entry.timeSlots),
+  ];
+  return `${labelText} ${parts.join(' · ')}`;
 }
 
 function liveGroupLines(g, now, { withLocation }) {
   const obisnuitFirst = g.obisnuit ? sortByDate(g.obisnuit.dates)[0] ?? null : null;
   const urgentFirst = g.urgent ? sortByDate(g.urgent.dates)[0] ?? null : null;
 
-  if (!obisnuitFirst && !urgentFirst) {
-    return [`_${escapeMarkdownV2('fără zile libere')}_`];
-  }
-
-  const sameDate = obisnuitFirst && urgentFirst && obisnuitFirst.date === urgentFirst.date;
-
-  if (sameDate || !obisnuitFirst || !urgentFirst) {
-    // Cazul normal: fie ambele coincid, fie doar una din variante exista -- o singura
-    // data, cu ambele numere de locuri (cate exista) pe randul de dedesubt.
-    const anchor = obisnuitFirst ?? urgentFirst;
-    const sub = [];
-    if (obisnuitFirst) sub.push(`${escapeMarkdownV2('obișnuit:')} ${slotsWithWarning(obisnuitFirst.timeSlots)}`);
-    if (urgentFirst) sub.push(`${escapeMarkdownV2('urgent:')} ${slotsWithWarning(urgentFirst.timeSlots)}`);
-    return [
-      liveDateHeaderLine(anchor.date, now, { withLocation, locationShort: g.locationShort }),
-      `   ${sub.join(' · ')}`,
-    ];
-  }
-
-  // Obisnuit si urgent au divergat -- caz neasteptat. Aici conteaza DATA, nu numarul de
-  // locuri (asta e semnalul util: "pe care varianta o iei mai devreme?"), deci comparatia
-  // e directa, pe un singur rand, fara locuri.
-  const compareLine = [
-    obisnuitFirst && `${escapeMarkdownV2('obișnuit:')} ${escapeMarkdownV2(formatDateHuman(obisnuitFirst.date))}`,
-    urgentFirst && `${escapeMarkdownV2('urgent:')} ${escapeMarkdownV2(formatDateHuman(urgentFirst.date))}`,
-  ]
-    .filter(Boolean)
-    .join(' · ');
-
-  if (!withLocation) return [compareLine];
-  return [`*${escapeMarkdownV2(g.locationShort)}*`, `   ${compareLine}`];
+  const lines = [];
+  if (withLocation) lines.push(`*${escapeMarkdownV2(g.locationShort)}*`);
+  const indent = withLocation ? '   ' : '';
+  // Randul apare doar daca varianta a fost citita cu succes de data asta (g.obisnuit/
+  // g.urgent) -- o citire esuata nu genereaza un rand fals "fără zile libere", ci lipseste
+  // complet (avertismentul agregat "N/8 categorii n-au putut fi citite" acopera cazul).
+  if (g.obisnuit) lines.push(`${indent}${liveVariantLine('obișnuit', obisnuitFirst, now)}`);
+  if (g.urgent) lines.push(`${indent}${liveVariantLine('urgent', urgentFirst, now)}`);
+  return lines;
 }
 
 function earliestOverall(g) {
