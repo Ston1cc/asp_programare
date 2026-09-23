@@ -10,25 +10,26 @@ import { splitMessage } from './format.js';
 // callback_data), deci webhook-ul o proceseaza prin acelasi flux ca orice comanda scrisa
 // de mana, fara cod nou. `is_persistent` -- ramane vizibila dupa ce e apasata o data.
 //
-// Trei variante, alese de webhook dupa starea chat-ului:
+// Trei variante, alese de webhook dupa starea chat-ului -- fiecare arata DOAR comenzile
+// aplicabile starii respective (proprietarul n-are ce face cu /inregistrare sau /sterge,
+// datele lui vin din .env), plus /help peste tot ca iesire din confuzie:
 //   ACUM_KEYBOARD       -- proprietarul botului (are mereu date, din .env)
 //   REGISTERED_KEYBOARD -- alta persoana care si-a salvat deja datele
-//   REGISTER_KEYBOARD   -- alta persoana necunoscuta botului -- singurul buton util e
-//                          cel care porneste introducerea datelor
+//   REGISTER_KEYBOARD   -- alta persoana necunoscuta botului
 export const ACUM_KEYBOARD = {
-  keyboard: [[{ text: '/acum' }]],
+  keyboard: [[{ text: '/acum' }, { text: '/help' }]],
   resize_keyboard: true,
   is_persistent: true,
 };
 
 export const REGISTERED_KEYBOARD = {
-  keyboard: [[{ text: '/acum' }], [{ text: '/sterge' }]],
+  keyboard: [[{ text: '/acum' }, { text: '/sterge' }], [{ text: '/help' }]],
   resize_keyboard: true,
   is_persistent: true,
 };
 
 export const REGISTER_KEYBOARD = {
-  keyboard: [[{ text: '/inregistrare' }]],
+  keyboard: [[{ text: '/inregistrare' }, { text: '/help' }]],
   resize_keyboard: true,
   is_persistent: true,
 };
@@ -73,4 +74,27 @@ export async function getTelegramUpdates({ botToken }, offset) {
     throw new Error(`Telegram getUpdates: raspuns neasteptat: ${JSON.stringify(data).slice(0, 200)}`);
   }
   return data.result;
+}
+
+/**
+ * Inregistreaza lista de comenzi in meniul nativ Telegram (butonul "Menu" de langa
+ * campul de text) -- apel unic, nu trebuie rulat la fiecare mesaj/deploy, doar cand se
+ * schimba lista de comenzi. `scope` optional -- `{ type: 'chat', chat_id }` seteaza o
+ * lista diferita doar pentru un chat anume (proprietarul vede mai putine comenzi decat
+ * restul lumii, vezi scripts/set-commands.mjs).
+ */
+export async function setMyCommands(botToken, commands, scope) {
+  const res = await fetch(`https://api.telegram.org/bot${botToken}/setMyCommands`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(scope ? { commands, scope } : { commands }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Telegram setMyCommands a esuat: HTTP ${res.status} — ${body}`);
+  }
+  const data = await res.json();
+  if (!data.ok) {
+    throw new Error(`Telegram setMyCommands: raspuns neasteptat: ${JSON.stringify(data).slice(0, 200)}`);
+  }
 }

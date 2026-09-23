@@ -32,8 +32,10 @@ liberă per categorie și trimite:
 
 Scrii `/acum` (sau `/live`, `/status`, `/check`) botului și primești răspuns **instant**
 (1-2 secunde), cu cele mai apropiate date la fiecare categorie, citite live, nu din cache.
-O tastatură persistentă cu butonul `/acum` e atașată la fiecare mesaj trimis de bot, ca
-să nu fie nevoie să-l scrii de mână de fiecare dată.
+O tastatură persistentă cu butoane e atașată la fiecare mesaj trimis de bot (adaptată
+stării chatului — vezi mai jos), plus `/help` listează toate comenzile disponibile.
+Comenzile mai apar și în meniul nativ Telegram (butonul „Menu" de lângă câmpul de text,
+cu autocomplete la `/`) — setat o singură dată cu `npm run set-commands`.
 
 Arhitectural, asta e un webhook Telegram — nu polling. `api/telegram-webhook.js`, deployat
 ca funcție serverless pe Vercel, e înregistrat direct la Telegram prin `setWebhook`, deci
@@ -44,8 +46,8 @@ periodică. (Varianta inițială, cu polling la 5 minute prin GitHub Actions, a 
 **Alte persoane decât proprietarul** pot folosi același bot, dar în numele lor, nu al
 proprietarului: prima dată când scriu (`/acum`, `/inregistrare` sau `/start`), botul le
 cere pas cu pas propriul IDNP, seria buletinului și data eliberării, printr-o
-conversație scurtă (`src/registration.js`). Datele sunt salvate per `chat_id` în Upstash
-Redis (`src/userStore.js`, cu TTL — 90 zile pentru date confirmate, 10 minute pentru o
+conversație scurtă (`src/registration.js`). Datele sunt salvate per `chat_id` în Redis
+(`src/userStore.js`, cu TTL — 90 zile pentru date confirmate, 10 minute pentru o
 înregistrare abandonată la jumătate), niciodată alături de `.env`-ul proprietarului.
 `/sterge` șterge datele salvate ale oricui le cere, oricând.
 
@@ -96,6 +98,8 @@ Pași de configurare (o singură dată):
    ajunge la funcție (primește 401 de la Vercel, nu de la codul nostru).
 3. `POST https://api.telegram.org/bot<TOKEN>/setWebhook` cu `url` = URL-ul funcției și
    `secret_token` = valoarea din `TELEGRAM_WEBHOOK_SECRET`.
+4. `npm run set-commands` (o singură dată, sau de câte ori se schimbă lista de comenzi) —
+   înregistrează comenzile în meniul nativ Telegram.
 
 Orice modificare la codul webhook-ului necesită un redeploy manual pe Vercel (nu e legat
 de push-uri pe GitHub în configurația curentă).
@@ -110,11 +114,13 @@ src/
 ├─ config.js    categorii+locații monitorizate + validare env
 ├─ state.js     persistență + diff (inclusiv logica de "cea mai devreme zi")
 ├─ format.js    mesaje Telegram + utilitare de dată (fus Europe/Chisinau)
-├─ telegram.js  client Telegram Bot API + tastaturi persistente
-├─ registration.js  flux conversațional (IDNP/serie/dată) pentru alte persoane decât proprietarul
-└─ userStore.js     persistență per chat_id (Upstash Redis) pentru datele altor persoane
+├─ telegram.js  client Telegram Bot API + tastaturi persistente + setMyCommands
+├─ registration.js  flux conversațional (IDNP/serie/dată) + mesajul /help
+└─ userStore.js     persistență per chat_id (Redis) pentru datele altor persoane
 api/
-└─ telegram-webhook.js   funcție serverless (Vercel) — răspunde la "/acum"
+└─ telegram-webhook.js   funcție serverless (Vercel) — răspunde la "/acum" etc.
+scripts/
+└─ set-commands.mjs      înregistrează comenzile în meniul nativ Telegram (o singură dată)
 state/slots.json   stare persistată de verificarea periodică, comisă înapoi în repo de CI
 ```
 

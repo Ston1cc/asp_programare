@@ -12,6 +12,7 @@ import { escapeMarkdownV2 } from './format.js';
 
 export const REGISTER_COMMANDS = new Set(['/inregistrare', '/start']);
 export const DELETE_COMMAND = '/sterge';
+export const HELP_COMMAND = '/help';
 
 function validateIdnp(text) {
   const v = text.trim();
@@ -110,4 +111,27 @@ export function advanceRegistration(pending, text) {
 
   // Stare neasteptata (nu ar trebui sa se intample) -- repornim inregistrarea curat.
   return startRegistrationPrompt();
+}
+
+function cmdLine(cmd, desc) {
+  return `*${escapeMarkdownV2(cmd)}* — ${escapeMarkdownV2(desc)}`;
+}
+
+/**
+ * Mesajul pentru /help -- adaptat starii chat-ului, ca sa nu listeze comenzi care nu se
+ * aplica (proprietarul n-are ce face cu /inregistrare sau /sterge, datele lui vin din
+ * .env, nu din Redis).
+ */
+export function buildHelpMessage({ isOwner, hasPerson }) {
+  const lines = [`🤖 *${escapeMarkdownV2('Comenzi disponibile:')}*`, ''];
+  if (isOwner) {
+    lines.push(cmdLine('/acum', 'verifică live cele mai apropiate date la examen'));
+  } else if (hasPerson) {
+    lines.push(cmdLine('/acum', 'verifică live cele mai apropiate date, cu datele tale salvate'));
+    lines.push(cmdLine('/sterge', 'șterge datele tale salvate (IDNP/serie/dată)'));
+  } else {
+    lines.push(cmdLine('/inregistrare', 'introdu IDNP/serie/dată ca să poți folosi botul în numele tău'));
+  }
+  lines.push(cmdLine('/help', 'acest mesaj'));
+  return lines.join('\n');
 }

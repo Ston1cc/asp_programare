@@ -9,7 +9,8 @@
   },
   "scripts": {
     "start": "node src/index.js",
-    "check": "node --env-file=.env src/index.js"
+    "check": "node --env-file=.env src/index.js",
+    "set-commands": "node --env-file=.env scripts/set-commands.mjs"
   },
   "dependencies": {
     "redis": "^6.2.1"

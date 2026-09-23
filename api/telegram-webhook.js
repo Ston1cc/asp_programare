@@ -14,7 +14,14 @@ import { loadConfig } from '../src/config.js';
 import { TRIGGER_COMMANDS, buildLiveReply } from '../src/live.js';
 import { sendTelegramMessage, ACUM_KEYBOARD, REGISTERED_KEYBOARD, REGISTER_KEYBOARD } from '../src/telegram.js';
 import { escapeMarkdownV2 } from '../src/format.js';
-import { REGISTER_COMMANDS, DELETE_COMMAND, startRegistrationPrompt, advanceRegistration } from '../src/registration.js';
+import {
+  REGISTER_COMMANDS,
+  DELETE_COMMAND,
+  HELP_COMMAND,
+  startRegistrationPrompt,
+  advanceRegistration,
+  buildHelpMessage,
+} from '../src/registration.js';
 import { getPerson, setPerson, deletePerson, getPendingRegistration, setPendingRegistration, clearPendingRegistration } from '../src/userStore.js';
 
 export const config = { maxDuration: 30 };
@@ -70,11 +77,30 @@ export default async function handler(req, res) {
 
       if (String(chatId) === String(cfg.telegram.chatId)) {
         // Proprietarul -- comportament original, neschimbat.
-        if (TRIGGER_COMMANDS.has(text)) {
+        if (text === HELP_COMMAND) {
+          await replyTo(botToken, chatId, buildHelpMessage({ isOwner: true }), ACUM_KEYBOARD);
+        } else if (TRIGGER_COMMANDS.has(text)) {
           await runLiveCheck(botToken, chatId, cfg.person, ACUM_KEYBOARD);
         }
       } else {
-        // Oricine altcineva.
+        // Oricine altcineva. /help e verificat PRIMUL, inaintea starii de `pending` --
+        // e comanda de iesire din confuzie, trebuie sa mearga chiar daca cineva e blocat
+        // la jumatatea inregistrarii, nu ingropata dupa validarea unui pas.
+        if (text === HELP_COMMAND) {
+          let hasPerson = false;
+          try {
+            hasPerson = Boolean(await getPerson(chatId));
+          } catch (err) {
+            // Best-effort -- /help trebuie sa raspunda si daca Redis e jos, presupunem
+            // varianta neinregistrat (mai sigura: nu promite butoane care n-ar functiona).
+            console.error('Eroare la citirea persoanei pentru /help:', err.message);
+          }
+          const keyboard = hasPerson ? REGISTERED_KEYBOARD : REGISTER_KEYBOARD;
+          await replyTo(botToken, chatId, buildHelpMessage({ isOwner: false, hasPerson }), keyboard);
+          res.status(200).json({ ok: true });
+          return;
+        }
+
         if (text === DELETE_COMMAND) {
           await deletePerson(chatId);
           await clearPendingRegistration(chatId);
