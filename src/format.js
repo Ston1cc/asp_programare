@@ -226,21 +226,26 @@ function slotsWithWarning(timeSlots) {
   return timeSlots != null && timeSlots <= LOW_SLOTS_THRESHOLD ? `⚠️ ${label}` : label;
 }
 
-/** O linie completa pentru o singura varianta (obisnuit SAU urgent) -- vezi comentariul de mai sus. */
-function liveVariantLine(label, entry, now) {
+/**
+ * O linie completa pentru o singura varianta (obisnuit SAU urgent) -- vezi comentariul de
+ * mai sus. `targetDate`, optional -- data tinta setata din /setari ("Până la"); o zi care
+ * o respecta primeste ✅ la inceputul randului, ca sa sara in ochi printre celelalte.
+ */
+function liveVariantLine(label, entry, now, targetDate) {
   const labelText = escapeMarkdownV2(`${label}:`);
   if (!entry) {
     return `${labelText} ${escapeMarkdownV2('fără zile libere')}`;
   }
+  const hitsTarget = targetDate && entry.date <= targetDate;
   const parts = [
     `*${escapeMarkdownV2(formatDateHuman(entry.date))}*`,
     escapeMarkdownV2(`peste ${daysWord(daysUntil(entry.date, now))}`),
     slotsWithWarning(entry.timeSlots),
   ];
-  return `${labelText} ${parts.join(' · ')}`;
+  return `${hitsTarget ? '✅ ' : ''}${labelText} ${parts.join(' · ')}`;
 }
 
-function liveGroupLines(g, now, { withLocation }) {
+function liveGroupLines(g, now, { withLocation, targetDate }) {
   const obisnuitFirst = g.obisnuit ? sortByDate(g.obisnuit.dates)[0] ?? null : null;
   const urgentFirst = g.urgent ? sortByDate(g.urgent.dates)[0] ?? null : null;
 
@@ -250,8 +255,8 @@ function liveGroupLines(g, now, { withLocation }) {
   // Randul apare doar daca varianta a fost citita cu succes de data asta (g.obisnuit/
   // g.urgent) -- o citire esuata nu genereaza un rand fals "fără zile libere", ci lipseste
   // complet (avertismentul agregat "N/8 categorii n-au putut fi citite" acopera cazul).
-  if (g.obisnuit) lines.push(`${indent}${liveVariantLine('obișnuit', obisnuitFirst, now)}`);
-  if (g.urgent) lines.push(`${indent}${liveVariantLine('urgent', urgentFirst, now)}`);
+  if (g.obisnuit) lines.push(`${indent}${liveVariantLine('obișnuit', obisnuitFirst, now, targetDate)}`);
+  if (g.urgent) lines.push(`${indent}${liveVariantLine('urgent', urgentFirst, now, targetDate)}`);
   return lines;
 }
 
@@ -262,7 +267,7 @@ function earliestOverall(g) {
   return a ?? b ?? '9999-99-99';
 }
 
-function buildLiveClosestLines(groups, now) {
+function buildLiveClosestLines(groups, now, targetDate) {
   const lines = [];
   const teoretic = groups.filter((g) => g.examType === 'teoretic');
   const practic = groups
@@ -272,14 +277,14 @@ function buildLiveClosestLines(groups, now) {
   if (teoretic.length > 0) {
     lines.push(`📗 *${escapeMarkdownV2('Teoretic')}*`);
     for (const g of teoretic) {
-      lines.push(...liveGroupLines(g, now, { withLocation: false }));
+      lines.push(...liveGroupLines(g, now, { withLocation: false, targetDate }));
       lines.push('');
     }
   }
   if (practic.length > 0) {
     lines.push(`🚦 *${escapeMarkdownV2('Practic')}*`);
     for (const g of practic) {
-      lines.push(...liveGroupLines(g, now, { withLocation: true }));
+      lines.push(...liveGroupLines(g, now, { withLocation: true, targetDate }));
       lines.push('');
     }
   }
@@ -479,8 +484,10 @@ export function buildHeartbeatMessage({ categoryResults, now = new Date(), title
  * Raspuns la comanda "/acum" -- verificare LIVE la cerere, nu din state. Doar sectiunea
  * "cele mai apropiate date" (nu toata lista/tabelul) ca raspunsul sa fie scurt si citit
  * rapid pe telefon; detaliul complet oricum vine automat la heartbeat-ul zilnic.
+ * `targetDate` ("YYYY-MM-DD"), optional -- tinta setata din /setari ("Până la"): adauga un
+ * rand-antet si marcheaza cu ✅ zilele care o respecta (vezi liveVariantLine).
  */
-export function buildLiveNowMessage({ categoryResults, now = new Date() }) {
+export function buildLiveNowMessage({ categoryResults, now = new Date(), targetDate = null }) {
   const groups = groupCategoryResults(categoryResults);
   const { day, month, hour, minute } = getLocalParts(now);
   const timeText = `verificat ${Number(day)} ${MONTH_NAMES[Number(month) - 1]}, ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
@@ -488,8 +495,11 @@ export function buildLiveNowMessage({ categoryResults, now = new Date() }) {
   const lines = [];
   lines.push(`🔴 *${escapeMarkdownV2(`LIVE · ${timeText}`)}*`);
   lines.push(`📍 ${escapeMarkdownV2(CITY_NAME)}`);
+  if (targetDate) {
+    lines.push(`🎯 ${escapeMarkdownV2(`Țintă: până la ${formatDateHuman(targetDate)}`)}`);
+  }
   lines.push('');
-  lines.push(...buildLiveClosestLines(groups, now));
+  lines.push(...buildLiveClosestLines(groups, now, targetDate));
   return lines.join('\n').trim();
 }
 

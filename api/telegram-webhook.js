@@ -14,7 +14,7 @@
 //     fara el, oricine putea sa-si inregistreze IDNP-ul, facand din proprietar operator
 //     de date personale pentru straini, fara control.
 
-import { loadConfig } from '../src/config.js';
+import { loadConfig, DEFAULT_VEHICLE } from '../src/config.js';
 import { isValidSecret } from '../src/secret.js';
 import { TRIGGER_COMMANDS, buildLiveReply } from '../src/live.js';
 import {
@@ -29,7 +29,7 @@ import {
   VEHICLE_KEYBOARD,
   BOOKING_KEYBOARD,
 } from '../src/telegram.js';
-import { escapeMarkdownV2 } from '../src/format.js';
+import { escapeMarkdownV2, formatDateHuman } from '../src/format.js';
 import {
   REGISTER_COMMANDS,
   DELETE_COMMAND,
@@ -47,6 +47,17 @@ import {
   buildAccessDecisionMessage,
 } from '../src/registration.js';
 import {
+  SETTINGS_COMMAND,
+  DEFAULT_PREFS,
+  normalizePrefs,
+  togglePref,
+  selectCategories,
+  buildSettingsKeyboard,
+  buildSettingsSummary,
+  parsePrefBeforeInput,
+  PREF_BEFORE_PROMPT,
+} from '../src/prefs.js';
+import {
   getPerson,
   setPerson,
   deletePerson,
@@ -61,6 +72,8 @@ import {
   tryAcquireRateLimit,
   isGlobalRateLimited,
   touchUser,
+  getPrefs,
+  setPrefs,
 } from '../src/userStore.js';
 
 export const config = { maxDuration: 30 };
@@ -79,6 +92,26 @@ async function replyTo(botToken, chatId, text, keyboard) {
   await sendTelegramMessage({ botToken, chatId }, text, keyboard);
 }
 
+const NO_CATEGORIES_MESSAGE = escapeMarkdownV2(
+  'Ai dezactivat tot din /setari — nu am ce verifica. Activează cel puțin o categorie.',
+);
+
+/**
+ * Preferintele salvate ale unui chat (src/prefs.js), traduse in ce trebuie sa citeasca
+ * /acum: categoriile filtrate + tinta de data. Best-effort -- daca Redis e jos, cade pe
+ * DEFAULT_PREFS (tot activat, fara tinta), ca /acum sa ramana functional si fara /setari
+ * (la fel ca inainte de aceasta functie).
+ */
+async function loadLiveOptions(chatId, vehicle) {
+  let prefs = DEFAULT_PREFS;
+  try {
+    prefs = normalizePrefs(await getPrefs(chatId));
+  } catch (err) {
+    console.error('Eroare la citirea preferintelor (fallback: toate activate):', err.message);
+  }
+  return { categories: selectCategories(prefs, vehicle), targetDate: prefs.before };
+}
+
 async function runOwnerLiveCheck(botToken, chatId, person, keyboard) {
   const now = Date.now();
   const elapsed = now - ownerLastCheckAt;
@@ -88,7 +121,12 @@ async function runOwnerLiveCheck(botToken, chatId, person, keyboard) {
     return;
   }
   ownerLastCheckAt = now;
-  const { message: reply } = await buildLiveReply(person);
+  const { categories, targetDate } = await loadLiveOptions(chatId, DEFAULT_VEHICLE);
+  if (categories.length === 0) {
+    await replyTo(botToken, chatId, NO_CATEGORIES_MESSAGE, keyboard);
+    return;
+  }
+  const { message: reply } = await buildLiveReply(person, { categories, targetDate });
   // BOOKING_KEYBOARD (inline), nu `keyboard` -- tastatura persistenta de sub campul de
   // text nu dispare doar pentru ca acest mesaj foloseste un alt reply_markup, vezi
   // comentariul de la BOOKING_KEYBOARD in telegram.js.
@@ -111,7 +149,12 @@ async function runUserLiveCheck(botToken, chatId, person, keyboard) {
     await replyTo(botToken, chatId, UNAVAILABLE_MESSAGE, keyboard);
     return;
   }
-  const { message: reply } = await buildLiveReply(person);
+  const { categories, targetDate } = await loadLiveOptions(chatId, person.vehicle ?? DEFAULT_VEHICLE);
+  if (categories.length === 0) {
+    await replyTo(botToken, chatId, NO_CATEGORIES_MESSAGE, keyboard);
+    return;
+  }
+  const { message: reply } = await buildLiveReply(person, { categories, targetDate });
   await replyTo(botToken, chatId, reply, BOOKING_KEYBOARD);
 
   // Reinnoieste TTL-ul (vezi userStore.js) -- best-effort, dupa ce raspunsul a plecat deja:
@@ -124,11 +167,75 @@ async function runUserLiveCheck(botToken, chatId, person, keyboard) {
   }
 }
 
+/** Trimite mesajul + tastatura de /setari. `vehicle` null pentru proprietar (fix, din .env). */
+async function sendSettingsMessage(botToken, chatId, vehicle, keyboard) {
+  let prefs;
+  try {
+    prefs = normalizePrefs(await getPrefs(chatId));
+  } catch (err) {
+    console.error('Eroare la citirea preferintelor:', err.message);
+    await replyTo(botToken, chatId, UNAVAILABLE_MESSAGE, keyboard);
+    return;
+  }
+  const settingsKeyboard = buildSettingsKeyboard(prefs, { vehicle, canChangeVehicle: vehicle != null });
+  await replyTo(botToken, chatId, buildSettingsSummary(), settingsKeyboard);
+}
+
+/** Raspunde la textul scris dupa apasarea "📅 Până la" (pending.step === 'prefBefore'). */
+async function handlePrefBeforeInput(botToken, chatId, rawText, keyboard) {
+  const result = parsePrefBeforeInput(rawText);
+  if (!result.ok) {
+    await replyTo(
+      botToken,
+      chatId,
+      escapeMarkdownV2('Nu am înțeles — scrie o dată DD.MM.YYYY, sau 0 ca să ștergi ținta.'),
+      keyboard,
+    );
+    return;
+  }
+  try {
+    const prefs = normalizePrefs(await getPrefs(chatId));
+    await setPrefs(chatId, { ...prefs, before: result.before });
+  } catch (err) {
+    console.error('Eroare la salvarea preferintelor:', err.message);
+    await replyTo(botToken, chatId, UNAVAILABLE_MESSAGE, keyboard);
+    return;
+  }
+  await clearPendingRegistration(chatId);
+  const msg = result.before
+    ? `🎯 ${escapeMarkdownV2(`Țintă setată: până la ${formatDateHuman(result.before)}.`)}`
+    : `🎯 ${escapeMarkdownV2('Țintă ștearsă.')}`;
+  await replyTo(botToken, chatId, msg, keyboard);
+}
+
 async function handleOwnerMessage(cfg, rawText, text) {
   const { botToken, chatId } = cfg.telegram;
 
+  // Best-effort -- proprietarul poate folosi botul (mai putin /setari) FARA Redis (vezi
+  // README), deci o citire esuata aici nu trebuie sa blocheze restul comenzilor: tratam
+  // ca "niciun pas in asteptare" si continuam normal.
+  let pending = null;
+  try {
+    pending = await getPendingRegistration(chatId);
+  } catch (err) {
+    console.error('Eroare la citirea starii (Redis indisponibil?):', err.message);
+  }
+  if (pending?.step === 'prefBefore') {
+    if (rawText.trim().startsWith('/')) {
+      await clearPendingRegistration(chatId).catch(() => {});
+    } else {
+      await handlePrefBeforeInput(botToken, chatId, rawText, ACUM_KEYBOARD);
+      return;
+    }
+  }
+
   if (text === HELP_COMMAND) {
     await replyTo(botToken, chatId, buildHelpMessage({ isOwner: true }), ACUM_KEYBOARD);
+    return;
+  }
+
+  if (text === SETTINGS_COMMAND) {
+    await sendSettingsMessage(botToken, chatId, null, ACUM_KEYBOARD);
     return;
   }
 
@@ -263,7 +370,16 @@ async function handleGuestMessage(cfg, message, rawText, text) {
 
   // De aici incolo: acces aprobat -- comportamentul de dinainte de audit-ul de securitate.
   const pending = await getPendingRegistration(chatId);
-  if (pending) {
+  if (pending?.step === 'prefBefore') {
+    // Acelasi escape-hatch ca mai jos in advanceRegistration -- o comanda tastata anuleaza
+    // pasul curent in loc sa fie interpretata ca raspuns la "Până la".
+    if (rawText.trim().startsWith('/')) {
+      await clearPendingRegistration(chatId);
+    } else {
+      await handlePrefBeforeInput(botToken, chatId, rawText, REGISTERED_KEYBOARD);
+      return;
+    }
+  } else if (pending) {
     const result = advanceRegistration(pending, rawText);
     if (result.cancelled) {
       await clearPendingRegistration(chatId);
@@ -299,6 +415,16 @@ async function handleGuestMessage(cfg, message, rawText, text) {
     return;
   }
 
+  if (text === SETTINGS_COMMAND) {
+    const person = await getPerson(chatId);
+    if (!person) {
+      await replyTo(botToken, chatId, escapeMarkdownV2('Înregistrează-te întâi cu /inregistrare.'), REGISTER_KEYBOARD);
+      return;
+    }
+    await sendSettingsMessage(botToken, chatId, person.vehicle ?? DEFAULT_VEHICLE, REGISTERED_KEYBOARD);
+    return;
+  }
+
   if (TRIGGER_COMMANDS.has(text)) {
     const person = await getPerson(chatId);
     if (person) {
@@ -311,8 +437,106 @@ async function handleGuestMessage(cfg, message, rawText, text) {
   }
 }
 
+/**
+ * Toggle-urile /setari ("pref:<path>") -- spre deosebire de approve/deny mai jos, NU sunt
+ * owner-only: orice chat aprobat isi poate schimba PROPRIILE preferinte. Sigur prin
+ * constructie -- callback_data nu poarta niciodata un chat_id tinta pentru pref:, doar
+ * calea preferintei ("pref:teoretic", "pref:loc:radautanu"...), deci actiunea se aplica
+ * mereu pe `cq.from.id` (identitatea confirmata de Telegram), niciodata pe alt chat.
+ */
+async function handlePrefCallback(cfg, cq, path) {
+  const { botToken, chatId: ownerId } = cfg.telegram;
+  const fromId = cq.from?.id;
+  if (fromId == null) {
+    await answerCallbackQuery(botToken, cq.id, '');
+    return;
+  }
+  const isOwner = String(fromId) === String(ownerId);
+
+  if (!isOwner) {
+    let access;
+    try {
+      access = await getAccess(fromId);
+    } catch (err) {
+      await answerCallbackQuery(botToken, cq.id, 'Eroare — încearcă din nou.');
+      return;
+    }
+    if (access?.status !== 'approved') {
+      await answerCallbackQuery(botToken, cq.id, 'Nu ai acces.');
+      return;
+    }
+  }
+
+  if (path === 'before') {
+    try {
+      await setPendingRegistration(fromId, { step: 'prefBefore' });
+    } catch (err) {
+      await answerCallbackQuery(botToken, cq.id, 'Eroare — încearcă din nou.');
+      return;
+    }
+    await answerCallbackQuery(botToken, cq.id, '');
+    await replyTo(botToken, fromId, PREF_BEFORE_PROMPT, isOwner ? ACUM_KEYBOARD : REGISTERED_KEYBOARD);
+    return;
+  }
+
+  if (path === 'vehicle') {
+    if (isOwner) {
+      // Vehiculul proprietarului vine din .env (ASP_... nu are un camp de vehicul) -- nu
+      // exista un `person` in Redis de modificat, spre deosebire de guesti.
+      await answerCallbackQuery(botToken, cq.id, 'Fix pentru proprietar.');
+      return;
+    }
+    let person;
+    try {
+      person = await getPerson(fromId);
+    } catch (err) {
+      await answerCallbackQuery(botToken, cq.id, 'Eroare — încearcă din nou.');
+      return;
+    }
+    if (!person) {
+      await answerCallbackQuery(botToken, cq.id, '');
+      return;
+    }
+    const nextVehicle = person.vehicle === 'BAutomatic' ? 'BMechanical' : 'BAutomatic';
+    await setPerson(fromId, { ...person, vehicle: nextVehicle });
+    await answerCallbackQuery(botToken, cq.id, nextVehicle === 'BAutomatic' ? 'Automată' : 'Manuală');
+    await refreshSettingsMessage(cfg, cq, fromId, isOwner);
+    return;
+  }
+
+  let prefs;
+  try {
+    prefs = togglePref(normalizePrefs(await getPrefs(fromId)), path);
+    await setPrefs(fromId, prefs);
+  } catch (err) {
+    await answerCallbackQuery(botToken, cq.id, 'Eroare — încearcă din nou.');
+    return;
+  }
+  await answerCallbackQuery(botToken, cq.id, '');
+  await refreshSettingsMessage(cfg, cq, fromId, isOwner);
+}
+
+/** Reface mesajul /setari in loc, cu prefs/vehicul actualizate -- fara mesaj nou la fiecare apasare. */
+async function refreshSettingsMessage(cfg, cq, chatId, isOwner) {
+  if (cq.message?.chat?.id == null || cq.message?.message_id == null) return;
+  try {
+    const prefs = normalizePrefs(await getPrefs(chatId));
+    const vehicle = isOwner ? null : ((await getPerson(chatId))?.vehicle ?? DEFAULT_VEHICLE);
+    const keyboard = buildSettingsKeyboard(prefs, { vehicle, canChangeVehicle: !isOwner });
+    await editMessageText(cfg.telegram.botToken, cq.message.chat.id, cq.message.message_id, buildSettingsSummary(), keyboard);
+  } catch (err) {
+    console.error('Eroare la actualizarea mesajului /setari:', err.message);
+  }
+}
+
 async function handleCallbackQuery(cfg, cq) {
   const { botToken, chatId: ownerId } = cfg.telegram;
+  const [action, ...rest] = String(cq.data || '').split(':');
+
+  if (action === 'pref') {
+    await handlePrefCallback(cfg, cq, rest.join(':'));
+    return;
+  }
 
   if (String(cq.from?.id) !== String(ownerId)) {
     // Cineva a apasat un buton dar nu e proprietarul -- nu avem incredere orbeste in
@@ -321,12 +545,12 @@ async function handleCallbackQuery(cfg, cq) {
     return;
   }
 
-  const [action, targetChatId] = String(cq.data || '').split(':');
   if (action !== 'approve' && action !== 'deny') {
     await answerCallbackQuery(botToken, cq.id, '');
     return;
   }
 
+  const targetChatId = rest[0];
   const status = action === 'approve' ? 'approved' : 'denied';
   const existing = await getAccess(targetChatId);
   await setAccessStatus(targetChatId, status);
