@@ -14,8 +14,8 @@
 //     fara el, oricine putea sa-si inregistreze IDNP-ul, facand din proprietar operator
 //     de date personale pentru straini, fara control.
 
-import { timingSafeEqual } from 'node:crypto';
 import { loadConfig } from '../src/config.js';
+import { isValidSecret } from '../src/secret.js';
 import { TRIGGER_COMMANDS, buildLiveReply } from '../src/live.js';
 import {
   sendTelegramMessage,
@@ -107,18 +107,6 @@ async function runUserLiveCheck(botToken, chatId, person, keyboard) {
   }
   const { message: reply } = await buildLiveReply(person);
   await replyTo(botToken, chatId, reply, keyboard);
-}
-
-// Comparare in timp constant -- altfel un atacator ar putea deduce secretul caracter cu
-// caracter din cat de repede raspunde un `!==` obisnuit (timing attack). Lungimi diferite
-// tratate explicit: timingSafeEqual arunca in loc sa intoarca false daca buffer-ele nu au
-// aceeasi lungime.
-function isValidSecret(received, expected) {
-  if (!received || !expected) return false;
-  const a = Buffer.from(received);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
 }
 
 async function handleOwnerMessage(cfg, rawText, text) {

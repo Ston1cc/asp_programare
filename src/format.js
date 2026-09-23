@@ -493,9 +493,9 @@ export function buildLiveNowMessage({ categoryResults, now = new Date() }) {
   return lines.join('\n').trim();
 }
 
-export function buildFailureMessage(errorsByCategory) {
+export function buildFailureMessage(errorsByCategory, threshold = 3) {
   const lines = ['⚠️ *Monitorul ASP nu poate citi calendarul*', ''];
-  lines.push(escapeMarkdownV2('3 rulări la rând au eșuat pentru:'));
+  lines.push(escapeMarkdownV2(`${threshold} rulări la rând au eșuat pentru:`));
   for (const [label, message] of errorsByCategory) {
     lines.push(`• ${escapeMarkdownV2(label)}: ${escapeMarkdownV2(message)}`);
   }

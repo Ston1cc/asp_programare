@@ -3,3 +3,8 @@ node_modules/
 *.log
 
 .vercel
+
+# Statul verificarii periodice locale (src/index.js) -- checkerul real ruleaza pe Vercel
+# (api/cron-check.js), cu state in Redis; fisierul local nu mai are rol de sursa de
+# adevar, doar de output al rularilor manuale, deci nu mai trebuie comis in repo.
+state/slots.json
