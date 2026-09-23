@@ -82,13 +82,13 @@ Proiect Vercel separat (`asp-programare-webhook`), cu propriile environment vari
 | Env var | Descriere |
 |---|---|
 | `TELEGRAM_WEBHOOK_SECRET` | șir random; Telegram îl trimite înapoi pe fiecare cerere ca să dovedească faptul că e chiar el, nu oricine a ghicit URL-ul |
-| `UPSTASH_REDIS_REST_URL` | doar dacă vrei ca *alte persoane* (nu proprietarul) să poată folosi botul — vezi mai jos |
-| `UPSTASH_REDIS_REST_TOKEN` | idem |
+| `REDIS_URL` | doar dacă vrei ca *alte persoane* (nu proprietarul) să poată folosi botul — vezi mai jos |
 
-Ultimele două vin dintr-un database Upstash Redis (gratuit, [upstash.com](https://upstash.com) —
-tab "REST API" din pagina database-ului). Fără ele, proprietarul (`TELEGRAM_CHAT_ID`)
-poate folosi botul normal, dar orice alt chat rămâne fără niciun răspuns (eroarea e doar
-în logurile Vercel, ca să nu spargem convenția "niciodată 5xx către Telegram").
+`REDIS_URL` e un connection string standard (`redis://default:PAROLA@host:port`) — orice
+provider merge (Redis Cloud, Upstash în mod TCP, self-hosted). Fără el, proprietarul
+(`TELEGRAM_CHAT_ID`) poate folosi botul normal, dar orice alt chat rămâne fără niciun
+răspuns (eroarea e doar în logurile Vercel, ca să nu spargem convenția "niciodată 5xx
+către Telegram").
 
 Pași de configurare (o singură dată):
 1. Deploy `api/telegram-webhook.js` + `src/*.js` pe Vercel (funcție serverless, fără build).
