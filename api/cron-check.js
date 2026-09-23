@@ -15,11 +15,13 @@ import { EMPTY_STATE } from '../src/state.js';
 import { runCheck } from '../src/check.js';
 import { sendTelegramMessage } from '../src/telegram.js';
 import { isValidSecret } from '../src/secret.js';
+import { normalizePrefs } from '../src/prefs.js';
 import {
   getCheckerState,
   setCheckerState,
   tryAcquireCheckerLock,
   releaseCheckerLock,
+  getPrefs,
 } from '../src/userStore.js';
 
 export const config = { maxDuration: 120 };
@@ -72,12 +74,19 @@ export default async function handler(req, res) {
       save: (state) => setCheckerState(state),
     };
 
+    // Preferintele proprietarului (/setari) -- filtreaza ce apare in alertele/heartbeat-ul
+    // trimise de checker, vezi runCheck. Un chat fara prefs salvate (niciodata n-a folosit
+    // /setari) foloseste implicit "tot activat" (normalizePrefs(null)), comportamentul de
+    // dinainte de /setari.
+    const ownerPrefs = normalizePrefs(await getPrefs(cfg.telegram.chatId));
+
     const { messages, errors, allFailed, categoryResults } = await runCheck({
       config: cfg,
       store,
       fetchOptions: FETCH_OPTIONS,
       cache: new Map(),
       failureThreshold: FAILURE_THRESHOLD,
+      prefs: ownerPrefs,
     });
 
     for (const msg of messages) {

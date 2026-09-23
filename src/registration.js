@@ -208,10 +208,12 @@ export function buildHelpMessage({ isOwner, hasPerson, needsApproval }) {
   const lines = [`🤖 *${escapeMarkdownV2('Comenzi disponibile:')}*`, ''];
   if (isOwner) {
     lines.push(cmdLine('/acum', 'verifică live cele mai apropiate date la examen'));
+    lines.push(cmdLine('/setari', 'alege ce categorii/dată-țintă primesc alerte'));
     lines.push(cmdLine('/utilizatori', 'listează persoanele cu acces aprobat'));
     lines.push(cmdLine('/revoca <chat_id>', 'revocă accesul unei persoane'));
   } else if (hasPerson) {
     lines.push(cmdLine('/acum', 'verifică live cele mai apropiate date, cu datele tale salvate'));
+    lines.push(cmdLine('/setari', 'alege ce categorii/dată-țintă apar la /acum'));
     lines.push(cmdLine('/sterge', 'șterge datele tale salvate (IDNP/serie/dată)'));
   } else if (needsApproval) {
     // Nu aratam /inregistrare aici -- inainte de aprobare, comanda doar retrimite/

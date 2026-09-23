@@ -20,6 +20,7 @@ import {
   getLocalParts,
 } from './format.js';
 import { BOOKING_KEYBOARD } from './telegram.js';
+import { applyPrefsToEvents, filterCategoryResultsByPrefs } from './prefs.js';
 
 const HEARTBEAT_HOUR = 7;
 const HEARTBEAT_MINUTE = 30;
@@ -40,6 +41,12 @@ const HEARTBEAT_MINUTE = 30;
  * Intoarce `messages` ca { text, keyboard? } -- doar alerta de zile noi/mai devreme
  * primeste BOOKING_KEYBOARD (butonul "Programează-te"); heartbeat-ul si alerta de esec
  * raman fara `keyboard`, ca apelantul sa foloseasca tastatura lui implicita (persistenta).
+ *
+ * `prefs`, optional (src/prefs.js) -- filtreaza DOAR ce APARE in alerte/heartbeat, nu ce
+ * se citeste: toate `categories` sunt mereu fetch-uite si diff-uite (vezi comentariul de
+ * la parametrul `categories` mai sus), altfel reactivarea unei categorii din /setari ar
+ * parea un fals "record" fata de un state neactualizat de mult timp. Fara `prefs`,
+ * comportamentul e identic cu dinainte de /setari (tot ce se citeste apare in mesaje).
  */
 export async function runCheck({
   config,
@@ -50,6 +57,7 @@ export async function runCheck({
   cache,
   failureThreshold = 3,
   fetchDates = fetchCategoryDates, // injectabil -- doar pentru teste, ca sa nu loveasca ASP live
+  prefs,
 }) {
   const state = await store.load();
 
@@ -92,7 +100,8 @@ export async function runCheck({
   if (categoryResults.length > 0) {
     const { earlierDays, newLaterDays, nextState: computedState } = computeDiff(state, categoryResults);
     nextState = computedState;
-    const alertMsg = buildAlertMessage({ earlierDays, newLaterDays });
+    const events = prefs ? applyPrefsToEvents(prefs, { earlierDays, newLaterDays }) : { earlierDays, newLaterDays };
+    const alertMsg = buildAlertMessage(events);
     if (alertMsg) messages.push({ text: alertMsg, keyboard: BOOKING_KEYBOARD });
   }
 
@@ -102,11 +111,18 @@ export async function runCheck({
   const heartbeatDue =
     localHour * 60 + localMinute >= HEARTBEAT_HOUR * 60 + HEARTBEAT_MINUTE &&
     nextState.lastHeartbeatDate !== todayLocal;
+  // Preferintele filtreaza doar CE intra in heartbeat, nu daca heartbeat-ul e trimis --
+  // altfel un user care a debifat tot ar ramane blocat fara heartbeat DELOC, fara sa
+  // inteleaga de ce (si lastHeartbeatDate tot trebuie marcat, ca sa nu reincercam la
+  // fiecare rulare urmatoare din aceeasi zi).
+  const heartbeatCategoryResults = prefs ? filterCategoryResultsByPrefs(prefs, categoryResults) : categoryResults;
   if (heartbeatDue && categoryResults.length > 0) {
-    messages.push({ text: buildHeartbeatMessage({ categoryResults, now }) });
+    messages.push({ text: buildHeartbeatMessage({ categoryResults: heartbeatCategoryResults, now }) });
     nextState.lastHeartbeatDate = todayLocal;
   } else if (isFirstEverRun && categoryResults.length > 0) {
-    messages.push({ text: buildHeartbeatMessage({ categoryResults, now, title: 'Monitor pornit — prima citire' }) });
+    messages.push({
+      text: buildHeartbeatMessage({ categoryResults: heartbeatCategoryResults, now, title: 'Monitor pornit — prima citire' }),
+    });
   }
 
   nextState.lastRun = now.toISOString();

@@ -6,10 +6,35 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { runCheck } from '../src/check.js';
 import { EMPTY_STATE } from '../src/state.js';
+import { DEFAULT_PREFS } from '../src/prefs.js';
 
 const CONFIG = { person: { idnp: '1', seriaAndNumber: 'AB1', issueDate: '2020-01-01T00:00:00' } };
 const CATEGORIES = [
   { key: 'c1', label: 'Categoria 1', emoji: '📗', examType: 'teoretic', urgent: false, locationName: 'L1' },
+];
+const CATEGORIES_2 = [
+  {
+    key: 'c1',
+    label: 'Teoretic',
+    emoji: '📗',
+    examType: 'teoretic',
+    urgent: false,
+    locationId: 'salcamilor',
+    locationName: 'L1',
+    locationShort: 'L1',
+    locationAbbr: 'L1',
+  },
+  {
+    key: 'c2',
+    label: 'Practic',
+    emoji: '🚦',
+    examType: 'practic',
+    urgent: false,
+    locationId: 'radautanu',
+    locationName: 'L2',
+    locationShort: 'L2',
+    locationAbbr: 'L2',
+  },
 ];
 
 function memoryStore(initial = EMPTY_STATE()) {
@@ -130,4 +155,35 @@ test('runCheck: un succes reseteaza streak-ul de esecuri la 0', async () => {
 
   await runCheck({ config: CONFIG, store, categories: CATEGORIES, fetchDates: async () => [] });
   assert.equal(store.current.consecutiveFailures, 0);
+});
+
+test('runCheck: prefs filtreaza ce APARE in alerta, dar tot citeste + diff-uieste categoriile ascunse', async () => {
+  const store = memoryStore();
+  const fetchByKey = (cat) => (cat.key === 'c1' ? [{ date: '2026-10-10', timeSlots: 3 }] : [{ date: '2026-10-10', timeSlots: 5 }]);
+
+  // Baseline -- inainte de heartbeat, ambele categorii.
+  await runCheck({
+    config: CONFIG,
+    store,
+    now: new Date('2026-09-23T02:00:00Z'),
+    categories: CATEGORIES_2,
+    fetchDates: async (cat) => fetchByKey(cat),
+  });
+
+  // A doua rulare: ambele categorii primesc o zi mai devreme, dar prefs dezactiveaza practic.
+  const prefs = { ...DEFAULT_PREFS, practic: false };
+  const { messages, categoryResults } = await runCheck({
+    config: CONFIG,
+    store,
+    now: new Date('2026-09-23T03:00:00Z'),
+    categories: CATEGORIES_2,
+    fetchDates: async (cat) => (cat.key === 'c1' ? [{ date: '2026-10-05', timeSlots: 1 }] : [{ date: '2026-10-05', timeSlots: 1 }]),
+    prefs,
+  });
+
+  assert.equal(categoryResults.length, 2); // ambele au fost citite
+  assert.equal(messages.length, 1);
+  assert.match(messages[0].text, /Teoretic/);
+  assert.doesNotMatch(messages[0].text, /Practic/);
+  assert.equal(store.current.earliest.c2, '2026-10-05'); // diff-uit + salvat, desi ascuns din mesaj
 });

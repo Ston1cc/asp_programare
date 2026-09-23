@@ -18,13 +18,13 @@ import { BOOKING_URL } from './config.js';
 //   REGISTERED_KEYBOARD -- alta persoana care si-a salvat deja datele
 //   REGISTER_KEYBOARD   -- alta persoana necunoscuta botului
 export const ACUM_KEYBOARD = {
-  keyboard: [[{ text: '/acum' }, { text: '/help' }]],
+  keyboard: [[{ text: '/acum' }, { text: '/setari' }], [{ text: '/help' }]],
   resize_keyboard: true,
   is_persistent: true,
 };
 
 export const REGISTERED_KEYBOARD = {
-  keyboard: [[{ text: '/acum' }, { text: '/sterge' }], [{ text: '/help' }]],
+  keyboard: [[{ text: '/acum' }, { text: '/setari' }], [{ text: '/sterge' }, { text: '/help' }]],
   resize_keyboard: true,
   is_persistent: true,
 };
@@ -93,9 +93,16 @@ export async function answerCallbackQuery(botToken, callbackQueryId, text) {
   await callTelegram(botToken, 'answerCallbackQuery', { callback_query_id: callbackQueryId, text });
 }
 
-/** Editeaza un mesaj deja trimis -- folosit ca sa marcheze decizia (Aprobat/Respins) pe mesajul de cerere. */
-export async function editMessageText(botToken, chatId, messageId, text) {
-  await callTelegram(botToken, 'editMessageText', { chat_id: chatId, message_id: messageId, text, parse_mode: 'MarkdownV2' });
+/**
+ * Editeaza un mesaj deja trimis -- folosit ca sa marcheze decizia (Aprobat/Respins) pe
+ * mesajul de cerere, si (cu `replyMarkup`) ca sa actualizeze tastatura inline in acelasi
+ * mesaj cand /setari schimba o preferinta -- fara sa trimita un mesaj nou de fiecare
+ * apasare de buton.
+ */
+export async function editMessageText(botToken, chatId, messageId, text, replyMarkup) {
+  const payload = { chat_id: chatId, message_id: messageId, text, parse_mode: 'MarkdownV2' };
+  if (replyMarkup) payload.reply_markup = replyMarkup;
+  await callTelegram(botToken, 'editMessageText', payload);
 }
 
 /** Sterge un mesaj -- folosit ca sa scoatem din chat mesajele in care userul a scris IDNP/serie/data. */

@@ -21,18 +21,22 @@ const FAST_FETCH_OPTIONS = { retryDelays: [1500], timeoutMs: 6000 };
  * `person.vehicle`, optional (proprietarul din .env nu are acest camp -- ramane implicit
  * BMechanical, comportamentul de dinainte de optiunea de vehicul; guestii il seteaza la
  * inregistrare, vezi registration.js) -- alege categoria practica (manuala/automata).
+ * `categories`, optional -- implicit toate cele construite din vehiculul persoanei;
+ * apelantul poate trece un subset deja filtrat de /setari (src/prefs.js), fara ca
+ * live.js sa stie nimic despre preferinte. `targetDate`, optional -- trecuta mai departe
+ * la buildLiveNowMessage (marcheaza ✅ zilele care respecta tinta "Până la").
  */
-export async function buildLiveReply(person, now = new Date()) {
-  const categories = buildCategories(person.vehicle ?? DEFAULT_VEHICLE);
+export async function buildLiveReply(person, { now = new Date(), categories, targetDate = null } = {}) {
+  const effectiveCategories = categories ?? buildCategories(person.vehicle ?? DEFAULT_VEHICLE);
   const cache = new Map();
   const settled = await Promise.allSettled(
-    categories.map((category) => fetchCategoryDates(category, person, { fetchOptions: FAST_FETCH_OPTIONS, cache })),
+    effectiveCategories.map((category) => fetchCategoryDates(category, person, { fetchOptions: FAST_FETCH_OPTIONS, cache })),
   );
 
   const categoryResults = [];
   const errors = [];
   settled.forEach((result, i) => {
-    const category = categories[i];
+    const category = effectiveCategories[i];
     if (result.status === 'fulfilled') {
       categoryResults.push({ category, dates: filterWithinHorizon(result.value, now) });
     } else {
@@ -40,9 +44,9 @@ export async function buildLiveReply(person, now = new Date()) {
     }
   });
 
-  let message = buildLiveNowMessage({ categoryResults, now });
+  let message = buildLiveNowMessage({ categoryResults, now, targetDate });
   if (errors.length > 0) {
-    message += `\n\n⚠️ ${escapeMarkdownV2(`${errors.length}/${categories.length} categorii n-au putut fi citite acum.`)}`;
+    message += `\n\n⚠️ ${escapeMarkdownV2(`${errors.length}/${effectiveCategories.length} categorii n-au putut fi citite acum.`)}`;
   }
 
   return { message, categoryResults, errors };

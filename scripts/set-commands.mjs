@@ -13,6 +13,7 @@ const cfg = loadConfig();
 
 const ALL_COMMANDS = [
   { command: 'acum', description: 'Verifică live cele mai apropiate date la examen' },
+  { command: 'setari', description: 'Alege ce categorii/dată-țintă apar la /acum' },
   { command: 'inregistrare', description: 'Introdu IDNP/serie/dată ca să folosești botul în numele tău' },
   { command: 'sterge', description: 'Șterge datele tale salvate' },
   { command: 'help', description: 'Lista comenzilor disponibile' },
@@ -20,6 +21,7 @@ const ALL_COMMANDS = [
 
 const OWNER_COMMANDS = [
   { command: 'acum', description: 'Verifică live cele mai apropiate date la examen' },
+  { command: 'setari', description: 'Alege ce categorii/dată-țintă primesc alerte' },
   { command: 'utilizatori', description: 'Listează persoanele cu acces aprobat' },
   { command: 'revoca', description: 'Revocă accesul unei persoane (revoca <chat_id>)' },
   { command: 'help', description: 'Lista comenzilor disponibile' },

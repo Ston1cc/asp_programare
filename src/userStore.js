@@ -282,3 +282,22 @@ export async function tryAcquireCheckerLock() {
 export async function releaseCheckerLock() {
   await del(CHECKER_LOCK_KEY);
 }
+
+// --- Preferinte per chat (/setari, src/prefs.js) --------------------------------------
+//
+// Fara date personale (doar boolean-uri + o data tinta) -- NEcriptat, la fel ca
+// checker:state/rate-limit de mai sus. Fara TTL, spre deosebire de person:/access: --
+// TTL-urile de acolo exista specific ca sa nu se acumuleze date personale ale unor
+// straini; niste toggle-uri boolene pentru un chat abandonat nu au acelasi risc, deci nu
+// merita complexitatea de a le reinnoi din touchUser().
+
+export async function getPrefs(chatId) {
+  const client = await getClient();
+  const raw = await client.get(`prefs:${chatId}`);
+  return raw == null ? null : JSON.parse(raw);
+}
+
+export async function setPrefs(chatId, prefs) {
+  const client = await getClient();
+  await client.set(`prefs:${chatId}`, JSON.stringify(prefs));
+}
