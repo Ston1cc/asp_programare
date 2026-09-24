@@ -17,7 +17,7 @@ HTTP simple per categorie:
 
 Proiectul are **două componente**, cu roluri diferite:
 
-### 1. Verificarea periodică (GitHub Actions, la 2 ore)
+### 1. Verificarea periodică (GitHub Actions, din oră în oră)
 
 `src/index.js`, rulat de `.github/workflows/check.yml`. Ține minte cea mai devreme zi
 liberă per categorie și trimite:
@@ -25,8 +25,15 @@ liberă per categorie și trimite:
 - **alertă imediată** când apare o zi *mai devreme* decât minimul cunoscut (evenimentul
   important — semnalează că poți programa mai repede)
 - alertă normală pentru zile noi mai târzii
-- **rezumat zilnic** la 08:00 (Europe/Chisinau) cu situația completă (cele mai apropiate
+- **rezumat zilnic** la 07:30 (Europe/Chisinau) cu situația completă (cele mai apropiate
   date per categorie + toate zilele + tabel comparativ pe filiale pentru proba practică)
+
+**Limita zilnică ASP.** ASP acceptă doar un număr limitat de cereri pe zi *per IDNP*
+(~250–300, estimat), apoi răspunde cu HTTP 429 până la 00:00 UTC (03:00 Chișinău). Când se
+întâmplă asta, checker-ul nu mai reîncearcă: se oprește la prima 429, îți trimite **un
+singur** mesaj „⏸️ ASP a limitat cererile… până la HH:MM” și nu mai face nicio cerere până
+atunci. Același lucru pentru `/acum` — răspunde imediat cu ora la care poți încerca din nou.
+Contorul „cereri ASP azi” apare în logul fiecărei rulări, ca să aflăm cota reală.
 
 ### 2. Comanda la cerere (`/acum`, webhook pe Vercel)
 
@@ -80,7 +87,7 @@ Repo-ul trebuie să fie **privat**. Adaugă în Settings → Secrets and variabl
 | `TELEGRAM_BOT_TOKEN` | token de la [@BotFather](https://t.me/BotFather) |
 | `TELEGRAM_CHAT_ID` | id-ul chatului unde ajung notificările |
 
-Workflow-ul (`.github/workflows/check.yml`) rulează la `0 */2 * * *` și poate fi declanșat
+Workflow-ul (`.github/workflows/check.yml`) rulează la `30 * * * *` (GitHub `schedule` e „best effort” — pot apărea întârzieri de ore) și poate fi declanșat
 manual din tab-ul Actions (`workflow_dispatch`).
 
 ## Configurare webhook (Vercel — comanda `/acum`)

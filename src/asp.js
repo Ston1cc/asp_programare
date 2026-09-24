@@ -13,6 +13,31 @@ function sleep(ms) {
 }
 
 /**
+ * HTTP 429 de la ASP. Verificat live (24.09.2026): limita e o cota zilnica PER IDNP (acelasi
+ * IP, alt IDNP -> raspuns normal), cu `Retry-After` pana la 23:59:59 UTC. Reincercarea nu
+ * ajuta -- doar consuma cereri pe o cota deja epuizata -- deci nu se retry-uieste: apelantul
+ * primeste `until` (Date) si opreste orice alta cerere pentru acel IDNP pana atunci.
+ */
+export class RateLimitError extends Error {
+  constructor(label, until) {
+    super(`${label}: HTTP 429 (limita ASP pana la ${until.toISOString()})`);
+    this.name = 'RateLimitError';
+    this.until = until;
+  }
+}
+
+function parseRetryAfter(header, now = Date.now()) {
+  if (header) {
+    const seconds = Number(header);
+    if (Number.isFinite(seconds) && seconds >= 0) return new Date(now + seconds * 1000);
+    const date = new Date(header);
+    if (!Number.isNaN(date.getTime())) return date;
+  }
+  const d = new Date(now);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1));
+}
+
+/**
  * `fetchOptions` = { retryDelays, timeoutMs }, optional -- lasat implicit pentru
  * verificarea periodica (comportament neschimbat), suprascris de live.js cu valori mai
  * mici pentru raspunsul "/acum" (constrans de maxDuration: 30 pe Vercel, vezi
@@ -26,11 +51,15 @@ async function fetchWithRetry(url, options, label, fetchOptions = {}) {
   for (let attempt = 0; attempt <= retryDelays.length; attempt++) {
     try {
       const res = await fetch(url, { ...options, signal: AbortSignal.timeout(timeoutMs) });
+      if (res.status === 429) {
+        throw new RateLimitError(label, parseRetryAfter(res.headers.get('retry-after')));
+      }
       if (!res.ok) {
         throw new Error(`${label}: HTTP ${res.status} la ${url}`);
       }
       return res;
     } catch (err) {
+      if (err instanceof RateLimitError) throw err;
       lastError = err;
       if (attempt < retryDelays.length) {
         await sleep(retryDelays[attempt]);
