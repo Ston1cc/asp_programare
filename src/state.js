@@ -11,6 +11,12 @@ const EMPTY_STATE = () => ({
   earliest: {}, // { [categoryKey]: "YYYY-MM-DD" }
   slots: {}, // { "categoryKey|YYYY-MM-DD": { date, timeSlots } }
   initialized: {}, // { [categoryKey]: true } -- odata setat, categoria a fost deja evaluata
+  // ISO -- cat timp `now` e inainte de aceasta valoare, ASP a limitat IDNP-ul (HTTP 429,
+  // cota zilnica) si NU facem nicio cerere; vezi RateLimitError in asp.js.
+  rateLimitedUntil: null,
+  // Cereri `dates` facute in ziua UTC curenta (cota ASP se reseteaza la 00:00 UTC) -- doar
+  // pentru vizibilitate in loguri, ca sa aflam cota reala din date, nu din estimari.
+  aspDaily: { date: null, count: 0 },
 });
 
 export async function loadState(path) {

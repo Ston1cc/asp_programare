@@ -3,13 +3,14 @@
 
 import { fileURLToPath } from 'node:url';
 import { CATEGORIES, loadConfig } from './config.js';
-import { fetchCategoryDates } from './asp.js';
+import { fetchCategoryDates, RateLimitError } from './asp.js';
 import { loadState, saveState, computeDiff } from './state.js';
 import {
   filterCurrentAndNextMonth,
   buildAlertMessage,
   buildHeartbeatMessage,
   buildFailureMessage,
+  buildRateLimitMessage,
   getLocalDateString,
   getLocalParts,
 } from './format.js';
@@ -25,15 +26,40 @@ async function main() {
   const state = await loadState(STATE_PATH);
   const now = new Date();
 
+  // --- Circuit breaker ASP 429 ---
+  // ASP limiteaza per IDNP, zilnic (verificat live 24.09.2026, reset 00:00 UTC). Cat timp
+  // limita e activa, fiecare cerere e irosita si doar prelungeste problema -- deci zero
+  // cereri pana la `rateLimitedUntil`, nu retry-uri.
+  if (state.rateLimitedUntil && now < new Date(state.rateLimitedUntil)) {
+    console.log(`ASP a limitat IDNP-ul pana la ${state.rateLimitedUntil} -- nicio cerere facuta.`);
+    state.lastRun = now.toISOString();
+    await saveState(STATE_PATH, state);
+    return;
+  }
+
+  // Contor zilnic (ziua UTC, ca resetul ASP) -- doar pentru vizibilitate in loguri.
+  const todayUtc = now.toISOString().slice(0, 10);
+  if (state.aspDaily?.date !== todayUtc) state.aspDaily = { date: todayUtc, count: 0 };
+
   const categoryResults = [];
   const errors = [];
+  let rateLimit = null;
 
   for (const category of CATEGORIES) {
     try {
+      // Numarat inainte de fetch: aproximeaza cererile `dates` (get-service/locations nu
+      // au IDNP si nu conteaza la cota).
+      state.aspDaily.count += 1;
       const dates = await fetchCategoryDates(category, config.person);
       const filtered = filterCurrentAndNextMonth(dates, now);
       categoryResults.push({ category, dates: filtered });
     } catch (err) {
+      if (err instanceof RateLimitError) {
+        // Opreste bucla -- restul categoriilor ar primi acelasi 429.
+        console.error(`[${category.key}] ${err.message}`);
+        rateLimit = err;
+        break;
+      }
       console.error(`[${category.key}] esuat: ${err.message}`);
       errors.push([category.label, err.message]);
     }
@@ -44,11 +70,17 @@ async function main() {
   // --- Failure tracking ---
   // Doar categoriile esuate conteaza pentru streak-ul de esecuri; daca toate au mers,
   // resetam la 0. Trimitem alerta o singura data, exact cand streak-ul atinge pragul,
-  // ca sa nu spamam la fiecare rulare ulterioara cat timp problema persista.
-  const allFailed = errors.length === CATEGORIES.length;
-  state.consecutiveFailures = allFailed ? state.consecutiveFailures + 1 : 0;
-  if (state.consecutiveFailures === FAILURE_THRESHOLD) {
-    messages.push(buildFailureMessage(errors));
+  // ca sa nu spamam la fiecare rulare ulterioara cat timp problema persista. O rulare
+  // limitata de ASP nu e un esec de citire (nu spune nimic despre structura site-ului) --
+  // streak-ul ramane neatins, iar utilizatorul primeste un mesaj dedicat, o singura data.
+  const allFailed = !rateLimit && errors.length === CATEGORIES.length;
+  if (rateLimit) {
+    messages.push(buildRateLimitMessage({ until: rateLimit.until, countToday: state.aspDaily.count, now }));
+  } else {
+    state.consecutiveFailures = allFailed ? state.consecutiveFailures + 1 : 0;
+    if (state.consecutiveFailures === FAILURE_THRESHOLD) {
+      messages.push(buildFailureMessage(errors));
+    }
   }
 
   // Prima rulare vreodata (nicio categorie n-a fost initializata pana acum) -- folosit
@@ -80,6 +112,9 @@ async function main() {
     messages.push(buildHeartbeatMessage({ categoryResults, now, title: 'Monitor pornit — prima citire' }));
   }
 
+  // Setat dupa diff (nu pe `state`) ca sa nu depinda de ce copiaza computeDiff; null cand
+  // rularea a mers -- o limita expirata nu ramane agatata in state.
+  nextState.rateLimitedUntil = rateLimit ? rateLimit.until.toISOString() : null;
   nextState.lastRun = now.toISOString();
 
   for (const msg of messages) {
@@ -89,7 +124,9 @@ async function main() {
   await saveState(STATE_PATH, nextState);
 
   console.log(
-    `OK — ${categoryResults.length}/${CATEGORIES.length} categorii citite, ${messages.length} mesaje trimise, ${errors.length} erori.`,
+    `OK — ${categoryResults.length}/${CATEGORIES.length} categorii citite, ${messages.length} mesaje trimise, ${errors.length} erori, ` +
+      `${nextState.aspDaily.count} cereri ASP azi (UTC)` +
+      (rateLimit ? `, LIMITAT pana la ${nextState.rateLimitedUntil}.` : '.'),
   );
 
   // Esec de proces doar daca TOATE categoriile au picat -- o categorie izolata nu trebuie

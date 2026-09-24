@@ -26,7 +26,7 @@
 // (in clar, dinainte de aceasta schimbare) e tratat ca inexistent, nu ca eroare.
 
 import { createClient } from 'redis';
-import { randomBytes, createCipheriv, createDecipheriv } from 'node:crypto';
+import { randomBytes, createCipheriv, createDecipheriv, createHash } from 'node:crypto';
 
 const PERSON_TTL_SECONDS = 60 * 60 * 24 * 90;
 const PENDING_TTL_SECONDS = 60 * 10;
@@ -227,6 +227,33 @@ export async function tryAcquireRateLimit(chatId, windowSeconds = RATE_LIMIT_CHA
   const client = await getClient();
   const set = await client.set(`rl:chat:${chatId}`, '1', { EX: windowSeconds, NX: true });
   return set === 'OK';
+}
+
+// --- Limita zilnica ASP (HTTP 429) per IDNP -------------------------------------------
+//
+// ASP limiteaza cererile `dates` per IDNP, zilnic (verificat live 24.09.2026). Cheia e
+// hash-ul IDNP-ului, NU IDNP-ul in clar -- cheile Redis nu sunt criptate, iar IDNP-ul e
+// date personale. Valoarea (un timestamp ISO public) nu e sensibila. TTL = pana la
+// `until`, deci limita expira singura din Redis, fara curatare.
+
+function aspBlockKey(idnp) {
+  return `asp:blocked:${createHash('sha256').update(String(idnp)).digest('hex')}`;
+}
+
+/** Date-ul pana cand ASP a limitat acest IDNP, sau null daca nu e (sau a expirat) limitat. */
+export async function getAspBlock(idnp) {
+  const client = await getClient();
+  const raw = await client.get(aspBlockKey(idnp));
+  if (!raw) return null;
+  const until = new Date(raw);
+  return Number.isNaN(until.getTime()) || until <= new Date() ? null : until;
+}
+
+export async function setAspBlock(idnp, until) {
+  const ttl = Math.ceil((until.getTime() - Date.now()) / 1000);
+  if (ttl <= 0) return;
+  const client = await getClient();
+  await client.set(aspBlockKey(idnp), until.toISOString(), { EX: ttl });
 }
 
 /** Incrementeaza contorul global pe fereastra curenta; true daca s-a depasit pragul. */

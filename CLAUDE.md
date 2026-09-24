@@ -27,11 +27,25 @@ Two independent pieces, both plain HTTP clients against ASP's public JSON API, s
 same `config`/`asp`/`format`/`telegram` modules, deployed to two different platforms
 because they have fundamentally different latency requirements.
 
-- **`src/index.js`** — periodic checker, run every 2h by `.github/workflows/check.yml`
-  on GitHub Actions. Fetches all monitored targets, diffs against `state/slots.json`
+- **`src/index.js`** — periodic checker, run hourly (`30 * * * *`) by
+  `.github/workflows/check.yml` on GitHub Actions (`schedule` is best-effort — gaps of
+  hours happen; accepted). Fetches all monitored targets, diffs against `state/slots.json`
   (committed back to the repo each run, since the runner is ephemeral), and sends a
   Telegram alert only when something notification-worthy changed, plus one full summary
-  per day (heartbeat, gated on local hour ≥ 8 in Europe/Chisinau).
+  per day (heartbeat, gated on local time ≥ 7:30 in Europe/Chisinau). The workflow's
+  "Commit state" step runs with `if: always()` — the check step exits 1 when every
+  category fails, and without `always()` the state (failure streak, rate-limit block)
+  would never be saved, so the failure alert could never fire.
+  **ASP rate limit (verified live 24.09.2026): a daily quota per IDNP, not per IP, reset
+  at 00:00 UTC** — same IP with a different IDNP answers normally; the blocked IDNP gets
+  HTTP 429 with `Retry-After` up to 23:59:59 UTC. Roughly 250–300 `dates` requests/day
+  (estimate — `state.aspDaily`, logged on every "OK —" line, exists to replace the guess
+  with data). `asp.js` therefore throws `RateLimitError` on 429 instead of retrying (a
+  retry only burns quota that's already gone); `index.js` treats it as a circuit breaker:
+  stop the category loop at the first 429, persist `state.rateLimitedUntil`, notify once
+  (`buildRateLimitMessage`), and make **zero** ASP requests until that time. A limited run
+  exits 0 and leaves `consecutiveFailures` untouched — a 429 says nothing about the site's
+  structure, unlike the "all categories failed" case the streak/alert exists for.
 - **`api/telegram-webhook.js`** — on-demand command responder, deployed as a Vercel
   serverless function and registered with Telegram via `setWebhook`. When the configured
   chat sends a recognized command (`/acum`, `/live`, `/status`, `/check`, `/help`, plus
@@ -70,7 +84,14 @@ because they have fundamentally different latency requirements.
   parallel** with a shorter retry/timeout budget (`FAST_FETCH_OPTIONS`) and a per-call
   memoization `Map` passed into `fetchCategoryDates` — required to fit inside Vercel's
   `maxDuration: 30` on `api/telegram-webhook.js` (8 categories run sequentially with the
-  cron's slower retry policy would blow past that).
+  cron's slower retry policy would blow past that). A `RateLimitError` from any category
+  (ASP's per-IDNP daily quota, see `src/index.js` above) is returned as
+  `rateLimitedUntil`, and if nothing at all could be read the reply is the dedicated
+  `buildAspBlockedMessage` ("try again after HH:MM") instead of a vague "8/8 unreadable".
+  The webhook's `liveReplyText` persists that via `userStore.setAspBlock` and checks
+  `getAspBlock` *before* fetching, so later `/acum`s for the same IDNP cost zero ASP
+  requests until the quota resets (Redis is best-effort there — if it's down, the live
+  check still runs, just without the memory of the block).
 - **`src/asp.js`** — the only module that talks to `eservicii.gov.md/asp/dimtcca/api`.
   No browser/Playwright is used; it's a 3-step JSON chain per target: `get-service`
   (resolve a service ID from exam type + urgency [+ vehicle category for practic]) →
@@ -83,9 +104,11 @@ because they have fundamentally different latency requirements.
   `cache` `Map` that memoizes the in-flight *promise* (not just the resolved value) keyed
   by service path / service ID — only 4 distinct service paths exist across the 8
   monitored categories, so without it `live.js`'s parallel fetch would redundantly
-  request the same service ID / location list multiple times. Strict response-shape
-  validation throughout — an unexpected/malformed response is treated as a failure,
-  never silently as "no slots available".
+  request the same service ID / location list multiple times. HTTP 429 is **not**
+  retried: `fetchWithRetry` throws `RateLimitError` (with `until`, parsed from
+  `Retry-After`; fallback next 00:00 UTC) immediately — see the rate-limit note under
+  `src/index.js`. Strict response-shape validation throughout — an unexpected/malformed
+  response is treated as a failure, never silently as "no slots available".
 - **`src/config.js`** — defines `CATEGORIES`, the flattened list of (exam type ×
   urgency × location) targets actually monitored, built from `BASE_CATEGORIES` ×
   `LOCATIONS`. The theoretical exam has a single Chișinău location (Salcâmilor); the
@@ -178,7 +201,11 @@ because they have fundamentally different latency requirements.
   the project's owner, so a leaked/misconfigured Redis connection string alone must not
   be enough to read them. A record that fails to decrypt (wrong key, corruption, or the
   pre-encryption plaintext format from before this was added) is treated as if it didn't
-  exist, not as a fatal error. Rate-limiting (`tryAcquireRateLimit`,
+  exist, not as a fatal error. The ASP daily-quota block (`getAspBlock`/`setAspBlock`) is
+  keyed `asp:blocked:<sha256(idnp)>` — hashed because Redis keys aren't encrypted and an
+  IDNP is personal data — with a TTL equal to the time left until the block ends, so it
+  expires on its own. Per IDNP, so the owner and each guest are independent.
+  Rate-limiting (`tryAcquireRateLimit`,
   `isGlobalRateLimited`) lives here too, as plain Redis counters (no personal data, so no
   encryption) — per-chat so one user's `/acum` doesn't put another user on cooldown (the
   original single shared in-memory cooldown did exactly that), plus a global per-minute

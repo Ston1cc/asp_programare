@@ -3,8 +3,8 @@
 // cat si, daca e nevoie, dintr-un script local.
 
 import { CATEGORIES } from './config.js';
-import { fetchCategoryDates } from './asp.js';
-import { filterCurrentAndNextMonth, buildLiveNowMessage, escapeMarkdownV2 } from './format.js';
+import { fetchCategoryDates, RateLimitError } from './asp.js';
+import { filterCurrentAndNextMonth, buildLiveNowMessage, buildAspBlockedMessage, escapeMarkdownV2 } from './format.js';
 
 // Orice varianta scurta, fara sa fim pretentiosi cu userul care scrie de pe telefon.
 export const TRIGGER_COMMANDS = new Set(['/acum', '/live', '/status', '/check']);
@@ -25,19 +25,30 @@ export async function buildLiveReply(person, now = new Date()) {
 
   const categoryResults = [];
   const errors = [];
+  let rateLimitedUntil = null;
   settled.forEach((result, i) => {
     const category = CATEGORIES[i];
     if (result.status === 'fulfilled') {
       categoryResults.push({ category, dates: filterCurrentAndNextMonth(result.value, now) });
+    } else if (result.reason instanceof RateLimitError) {
+      rateLimitedUntil = result.reason.until;
     } else {
       errors.push([category.label, result.reason.message]);
     }
   });
 
-  let message = buildLiveNowMessage({ categoryResults, now });
-  if (errors.length > 0) {
-    message += `\n\n⚠️ ${escapeMarkdownV2(`${errors.length}/${CATEGORIES.length} categorii n-au putut fi citite acum.`)}`;
+  // Limita ASP (429) nu e un esec de citire ca oricare altul -- apelantul salveaza
+  // `rateLimitedUntil` (userStore.setAspBlock) ca urmatoarele /acum sa nu mai loveasca ASP,
+  // iar utilizatorul primeste motivul real + ora de reset, nu un vag "8/8 n-au putut fi citite".
+  if (rateLimitedUntil && categoryResults.length === 0) {
+    return { message: buildAspBlockedMessage({ until: rateLimitedUntil, now }), categoryResults, errors, rateLimitedUntil };
   }
 
-  return { message, categoryResults, errors };
+  let message = buildLiveNowMessage({ categoryResults, now });
+  const unread = CATEGORIES.length - categoryResults.length;
+  if (unread > 0) {
+    message += `\n\n⚠️ ${escapeMarkdownV2(`${unread}/${CATEGORIES.length} categorii n-au putut fi citite acum.`)}`;
+  }
+
+  return { message, categoryResults, errors, rateLimitedUntil };
 }

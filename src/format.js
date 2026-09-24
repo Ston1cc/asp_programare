@@ -488,6 +488,35 @@ export function buildFailureMessage(errorsByCategory) {
   return lines.join('\n');
 }
 
+// `until` vine din Retry-After-ul ASP (23:59:59 UTC) -- rotunjit in sus cu 1s, ca sa afisam
+// ora reala de reset (00:00 UTC = 03:00 Chisinau vara), nu "02:59". "(mâine)" cand ziua
+// locala difera de azi, ca sa nu para ca limita expira in urma.
+function formatBlockUntil(until, now) {
+  const reset = new Date(until.getTime() + 1000);
+  const { hour, minute } = getLocalParts(reset);
+  const hhmm = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  return getLocalDateString(reset) === getLocalDateString(now) ? hhmm : `${hhmm} (mâine)`;
+}
+
+/** Trimis o singura data, cand checker-ul periodic intra in blocare (ASP a dat 429). */
+export function buildRateLimitMessage({ until, countToday, now = new Date() }) {
+  const count = countToday > 0 ? ` după ${countToday} cereri azi` : '';
+  return [
+    '⏸️ *ASP a limitat cererile*',
+    '',
+    escapeMarkdownV2(`Limită zilnică pentru IDNP-ul tău${count}. Pun verificările pe pauză până la ${formatBlockUntil(until, now)} și reiau automat.`),
+  ].join('\n');
+}
+
+/** Raspuns la /acum cat timp IDNP-ul e blocat -- zero cereri ASP. */
+export function buildAspBlockedMessage({ until, now = new Date() }) {
+  return [
+    '⏸️ *ASP a limitat verificările*',
+    '',
+    escapeMarkdownV2(`Limită zilnică pentru datele tale. Încearcă din nou după ${formatBlockUntil(until, now)}.`),
+  ].join('\n');
+}
+
 /** Sparge un mesaj lung pe granite de linie, sub limita Telegram. */
 export function splitMessage(text, maxLen = TELEGRAM_MAX_LEN) {
   if (text.length <= maxLen) return [text];

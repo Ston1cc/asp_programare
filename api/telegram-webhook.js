@@ -27,7 +27,7 @@ import {
   REGISTERED_KEYBOARD,
   REGISTER_KEYBOARD,
 } from '../src/telegram.js';
-import { escapeMarkdownV2 } from '../src/format.js';
+import { escapeMarkdownV2, buildAspBlockedMessage } from '../src/format.js';
 import {
   REGISTER_COMMANDS,
   DELETE_COMMAND,
@@ -61,6 +61,8 @@ import {
   listAllAccess,
   tryAcquireRateLimit,
   isGlobalRateLimited,
+  getAspBlock,
+  setAspBlock,
 } from '../src/userStore.js';
 
 export const config = { maxDuration: 30 };
@@ -91,6 +93,31 @@ function buildApproveKeyboard(targetChatId) {
   };
 }
 
+/**
+ * Textul raspunsului /acum, constient de limita zilnica ASP (HTTP 429, per IDNP): cat timp
+ * IDNP-ul e blocat raspunde imediat, fara nicio cerere ASP; dupa un 429 nou, salveaza
+ * blocarea ca urmatoarele /acum sa nu mai loveasca ASP. Redis e best-effort aici -- daca
+ * pica, verificarea live merge oricum (doar fara memoria blocarii), ca proprietarul sa nu
+ * depinda de Redis pentru /acum, ca inainte.
+ */
+async function liveReplyText(person) {
+  try {
+    const blockedUntil = await getAspBlock(person.idnp);
+    if (blockedUntil) return buildAspBlockedMessage({ until: blockedUntil });
+  } catch (err) {
+    console.error('Eroare la citirea blocarii ASP (Redis):', err.message);
+  }
+  const { message, rateLimitedUntil } = await buildLiveReply(person);
+  if (rateLimitedUntil) {
+    try {
+      await setAspBlock(person.idnp, rateLimitedUntil);
+    } catch (err) {
+      console.error('Eroare la salvarea blocarii ASP (Redis):', err.message);
+    }
+  }
+  return message;
+}
+
 async function runOwnerLiveCheck(botToken, chatId, person, keyboard) {
   const now = Date.now();
   const elapsed = now - ownerLastCheckAt;
@@ -100,8 +127,7 @@ async function runOwnerLiveCheck(botToken, chatId, person, keyboard) {
     return;
   }
   ownerLastCheckAt = now;
-  const { message: reply } = await buildLiveReply(person);
-  await replyTo(botToken, chatId, reply, keyboard);
+  await replyTo(botToken, chatId, await liveReplyText(person), keyboard);
 }
 
 async function runUserLiveCheck(botToken, chatId, person, keyboard) {
@@ -120,8 +146,7 @@ async function runUserLiveCheck(botToken, chatId, person, keyboard) {
     await replyTo(botToken, chatId, UNAVAILABLE_MESSAGE, keyboard);
     return;
   }
-  const { message: reply } = await buildLiveReply(person);
-  await replyTo(botToken, chatId, reply, keyboard);
+  await replyTo(botToken, chatId, await liveReplyText(person), keyboard);
 }
 
 // Comparare in timp constant -- altfel un atacator ar putea deduce secretul caracter cu
