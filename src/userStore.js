@@ -205,6 +205,21 @@ export async function listApprovedAccess() {
   return result;
 }
 
+/** Toate cererile de acces, orice status -- pentru /cereri. SCAN (non-blocant), nu KEYS. */
+export async function listAllAccess() {
+  const client = await getClient();
+  const result = [];
+  for await (const keys of client.scanIterator({ MATCH: 'access:*', COUNT: 100 })) {
+    for (const key of keys) {
+      const record = await getJSON(key);
+      if (record) {
+        result.push({ chatId: key.slice('access:'.length), ...record });
+      }
+    }
+  }
+  return result;
+}
+
 // --- Rate limiting per chat + global (fara date personale, fara criptare) -----------
 
 /** true daca acest chat NU a verificat in ultima fereastra (si marcheaza acum ca a facut-o). */

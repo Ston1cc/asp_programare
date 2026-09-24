@@ -17,7 +17,7 @@ import { splitMessage } from './format.js';
 //   REGISTERED_KEYBOARD -- alta persoana care si-a salvat deja datele
 //   REGISTER_KEYBOARD   -- alta persoana necunoscuta botului
 export const ACUM_KEYBOARD = {
-  keyboard: [[{ text: '/acum' }, { text: '/help' }]],
+  keyboard: [[{ text: '/acum' }, { text: '/cereri' }, { text: '/help' }]],
   resize_keyboard: true,
   is_persistent: true,
 };

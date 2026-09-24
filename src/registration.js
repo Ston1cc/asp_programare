@@ -15,6 +15,7 @@ export const DELETE_COMMAND = '/sterge';
 export const HELP_COMMAND = '/help';
 export const LIST_USERS_COMMAND = '/utilizatori';
 export const REVOKE_COMMAND = '/revoca';
+export const LIST_REQUESTS_COMMAND = '/cereri';
 
 // Cifra de control IDNP: ponderi 7,3,1 repetate pe primele 12 cifre, suma mod 10 trebuie
 // sa egaleze cifra 13. Filtreaza typo-uri (cifre transpuse etc.) inainte sa ajunga la ASP.
@@ -162,6 +163,14 @@ export function formatAccessRequestText({ chatId, name, username }) {
   ].join('\n');
 }
 
+/** Un rand compact per cerere, pentru /cereri -- include statusul, spre deosebire de formatAccessRequestText (doar pentru cererea noua, inca fara status decis). */
+export function formatAccessListLine(record) {
+  const emoji = record.status === 'approved' ? '✅' : record.status === 'denied' ? '❌' : '⏳';
+  const label = record.username ? `${record.name || '(fără nume)'} (@${record.username})` : record.name || `chat ${record.chatId}`;
+  const when = record.requestedAt ? record.requestedAt.slice(0, 16).replace('T', ' ') : '?';
+  return escapeMarkdownV2(`${emoji} ${label} — chat_id ${record.chatId} — cerut ${when}`);
+}
+
 /** Randul adaugat la mesajul de mai sus dupa ce proprietarul a decis (edit in Telegram). */
 export function buildAccessDecisionLine(status) {
   return status === 'approved' ? `✅ ${escapeMarkdownV2('Aprobat')}` : `❌ ${escapeMarkdownV2('Respins')}`;
@@ -188,6 +197,7 @@ export function buildHelpMessage({ isOwner, hasPerson, needsApproval }) {
   if (isOwner) {
     lines.push(cmdLine('/acum', 'verifică live cele mai apropiate date la examen'));
     lines.push(cmdLine('/utilizatori', 'listează persoanele cu acces aprobat'));
+    lines.push(cmdLine('/cereri', 'listează toate cererile de acces (în așteptare + decise)'));
     lines.push(cmdLine('/revoca <chat_id>', 'revocă accesul unei persoane'));
   } else if (hasPerson) {
     lines.push(cmdLine('/acum', 'verifică live cele mai apropiate date, cu datele tale salvate'));

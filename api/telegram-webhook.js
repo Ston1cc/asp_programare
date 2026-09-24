@@ -34,6 +34,7 @@ import {
   HELP_COMMAND,
   LIST_USERS_COMMAND,
   REVOKE_COMMAND,
+  LIST_REQUESTS_COMMAND,
   startRegistrationPrompt,
   advanceRegistration,
   buildHelpMessage,
@@ -41,6 +42,7 @@ import {
   ACCESS_DENIED_MESSAGE,
   ACCESS_REQUESTED_MESSAGE,
   formatAccessRequestText,
+  formatAccessListLine,
   buildAccessDecisionLine,
   buildAccessDecisionMessage,
 } from '../src/registration.js';
@@ -56,6 +58,7 @@ import {
   setAccessStatus,
   deleteAccess,
   listApprovedAccess,
+  listAllAccess,
   tryAcquireRateLimit,
   isGlobalRateLimited,
 } from '../src/userStore.js';
@@ -74,6 +77,18 @@ let ownerLastCheckAt = 0;
 
 async function replyTo(botToken, chatId, text, keyboard) {
   await sendTelegramMessage({ botToken, chatId }, text, keyboard);
+}
+
+/** Tastatura Aproba/Respinge atasata unei cereri de acces -- refolosita atat la notificarea initiala (handleGuestMessage) cat si la retrimiterea din /cereri pentru cereri ratate. */
+function buildApproveKeyboard(targetChatId) {
+  return {
+    inline_keyboard: [
+      [
+        { text: '✅ Aprobă', callback_data: `approve:${targetChatId}` },
+        { text: '❌ Respinge', callback_data: `deny:${targetChatId}` },
+      ],
+    ],
+  };
 }
 
 async function runOwnerLiveCheck(botToken, chatId, person, keyboard) {
@@ -146,6 +161,45 @@ async function handleOwnerMessage(cfg, rawText, text) {
             )
             .join('\n');
     await replyTo(botToken, chatId, `👥 *${escapeMarkdownV2('Utilizatori aprobați')}*\n\n${body}`, ACUM_KEYBOARD);
+    return;
+  }
+
+  if (text === LIST_REQUESTS_COMMAND) {
+    let all = [];
+    try {
+      all = await listAllAccess();
+    } catch (err) {
+      await replyTo(botToken, chatId, escapeMarkdownV2(`Eroare la citirea cererilor: ${err.message}`), ACUM_KEYBOARD);
+      return;
+    }
+    if (all.length === 0) {
+      await replyTo(botToken, chatId, escapeMarkdownV2('Nicio cerere înregistrată momentan.'), ACUM_KEYBOARD);
+      return;
+    }
+    const pending = all.filter((r) => r.status === 'pending');
+    const decided = all.filter((r) => r.status !== 'pending');
+    const lines = [`📋 *${escapeMarkdownV2('Toate cererile')}*`, ''];
+    if (pending.length > 0) {
+      lines.push(escapeMarkdownV2(`⏳ În așteptare (${pending.length}):`));
+      lines.push(...pending.map(formatAccessListLine));
+      lines.push('');
+    }
+    if (decided.length > 0) {
+      lines.push(escapeMarkdownV2(`Decise (${decided.length}):`));
+      lines.push(...decided.map(formatAccessListLine));
+    }
+    await replyTo(botToken, chatId, lines.join('\n'), ACUM_KEYBOARD);
+
+    // Fiecare cerere inca in asteptare e retrimisa separat, cu butoanele Aproba/Respinge --
+    // altfel lista ar arata o cerere pending pe care proprietarul n-ar avea cum sa o mai
+    // decida daca a ratat notificarea initiala (SET NX o trimite o singura data, la creare).
+    for (const r of pending) {
+      try {
+        await sendTelegramMessage({ botToken, chatId }, formatAccessRequestText(r), buildApproveKeyboard(r.chatId));
+      } catch (err) {
+        console.error('Eroare la retrimiterea cererii pentru actiune:', err.message);
+      }
+    }
     return;
   }
 
@@ -240,16 +294,8 @@ async function handleGuestMessage(cfg, message, rawText, text) {
       return;
     }
     if (created) {
-      const approveKeyboard = {
-        inline_keyboard: [
-          [
-            { text: '✅ Aprobă', callback_data: `approve:${chatId}` },
-            { text: '❌ Respinge', callback_data: `deny:${chatId}` },
-          ],
-        ],
-      };
       try {
-        await sendTelegramMessage({ botToken, chatId: ownerId }, formatAccessRequestText(meta), approveKeyboard);
+        await sendTelegramMessage({ botToken, chatId: ownerId }, formatAccessRequestText(meta), buildApproveKeyboard(chatId));
       } catch (err) {
         console.error('Eroare la notificarea proprietarului:', err.message);
       }
