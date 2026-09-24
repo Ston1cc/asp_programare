@@ -42,19 +42,6 @@ const RATE_LIMIT_CHAT_WINDOW_SECONDS = 45;
 const RATE_LIMIT_GLOBAL_WINDOW_SECONDS = 60;
 const RATE_LIMIT_GLOBAL_MAX = 10;
 
-// Cheia cu state-ul checkerului periodic (src/check.js), acum ca ruleaza pe Vercel
-// (api/cron-check.js) in loc de GitHub Actions -- echivalentul Redis al fostului
-// state/slots.json comis in repo la fiecare rulare. Nu contine date personale (doar zile
-// libere publice + contoare), deci nu trece prin criptare, la fel ca rate-limit-ul de mai
-// jos. Fara TTL -- e persistent, exact ca fisierul pe care il inlocuieste.
-const CHECKER_STATE_KEY = 'checker:state';
-// Lock cu TTL, nu doar un simplu flag -- daca o invocare anterioara ramane agatata
-// (crash, timeout Vercel), lock-ul expira singur in loc sa blocheze toate rularile
-// urmatoare la nesfarsit. 110s < maxDuration (120s) al functiei, ca lock-ul sa nu
-// supravietuiasca invocarii care l-a creat.
-const CHECKER_LOCK_KEY = 'checker:lock';
-const CHECKER_LOCK_TTL_SECONDS = 110;
-
 let clientPromise = null;
 
 function getClient() {
@@ -201,22 +188,6 @@ export async function deleteAccess(chatId) {
   await del(`access:${chatId}`);
 }
 
-/**
- * Reinnoieste TTL-ul unui chat aprobat care tocmai a folosit botul -- fara asta,
- * `person:`/`access:` expira 90 de zile dupa inregistrare/aprobare INDIFERENT cat de des
- * chat-ul foloseste /acum, si un user activ ar fi scos brusc si ar trebui sa ceara acces +
- * sa se reinregistreze de la zero. Doar EXPIRE (nu re-scrie valoarea), deci nu are nevoie
- * de cheia de criptare si nu poate corupe un record valid. Best-effort: o eroare aici nu
- * trebuie sa strice raspunsul la /acum, doar logata de apelant.
- */
-export async function touchUser(chatId) {
-  const client = await getClient();
-  await Promise.all([
-    client.expire(`person:${chatId}`, PERSON_TTL_SECONDS),
-    client.expire(`access:${chatId}`, ACCESS_APPROVED_TTL_SECONDS),
-  ]);
-}
-
 /** Toate chat-urile cu acces aprobat -- pentru /utilizatori. SCAN (non-blocant), nu KEYS. */
 export async function listApprovedAccess() {
   const client = await getClient();
@@ -251,53 +222,4 @@ export async function isGlobalRateLimited(max = RATE_LIMIT_GLOBAL_MAX) {
   const count = await client.incr(key);
   if (count === 1) await client.expire(key, RATE_LIMIT_GLOBAL_WINDOW_SECONDS);
   return count > max;
-}
-
-// --- State-ul checkerului periodic (Redis) + lock impotriva rularilor suprapuse ------
-
-/** State-ul salvat de ultima rulare a checkerului, sau null daca n-a rulat inca niciodata. */
-export async function getCheckerState() {
-  const client = await getClient();
-  const raw = await client.get(CHECKER_STATE_KEY);
-  return raw == null ? null : JSON.parse(raw);
-}
-
-export async function setCheckerState(state) {
-  const client = await getClient();
-  await client.set(CHECKER_STATE_KEY, JSON.stringify(state));
-}
-
-/**
- * true daca lock-ul a fost obtinut acum (deci apelantul poate rula checkerul); false daca
- * o alta invocare il tine deja -- vezi comentariul de la CHECKER_LOCK_KEY. Cron-job.org
- * poate suprapune doua apeluri (retry, cerere lenta anterioara inca activa); fara lock,
- * doua rulari simultane ar putea trimite aceeasi alerta de doua ori.
- */
-export async function tryAcquireCheckerLock() {
-  const client = await getClient();
-  const set = await client.set(CHECKER_LOCK_KEY, '1', { EX: CHECKER_LOCK_TTL_SECONDS, NX: true });
-  return set === 'OK';
-}
-
-export async function releaseCheckerLock() {
-  await del(CHECKER_LOCK_KEY);
-}
-
-// --- Preferinte per chat (/setari, src/prefs.js) --------------------------------------
-//
-// Fara date personale (doar boolean-uri + o data tinta) -- NEcriptat, la fel ca
-// checker:state/rate-limit de mai sus. Fara TTL, spre deosebire de person:/access: --
-// TTL-urile de acolo exista specific ca sa nu se acumuleze date personale ale unor
-// straini; niste toggle-uri boolene pentru un chat abandonat nu au acelasi risc, deci nu
-// merita complexitatea de a le reinnoi din touchUser().
-
-export async function getPrefs(chatId) {
-  const client = await getClient();
-  const raw = await client.get(`prefs:${chatId}`);
-  return raw == null ? null : JSON.parse(raw);
-}
-
-export async function setPrefs(chatId, prefs) {
-  const client = await getClient();
-  await client.set(`prefs:${chatId}`, JSON.stringify(prefs));
 }
