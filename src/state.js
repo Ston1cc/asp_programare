@@ -4,10 +4,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-// Exportat (nu doar local) -- src/check.js il foloseste si pentru store-ul Redis (Vercel),
-// nu doar pentru fisierul local, ca ambele store-uri sa porneasca de la aceleasi valori
-// implicite si sa se completeze cu campuri noi adaugate ulterior la state.
-export const EMPTY_STATE = () => ({
+const EMPTY_STATE = () => ({
   lastRun: null,
   lastHeartbeatDate: null,
   consecutiveFailures: 0,

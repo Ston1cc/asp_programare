@@ -1,6 +1,6 @@
 // Formatare mesaje Telegram (MarkdownV2) + utilitare de date in fusul Europe/Chisinau.
 
-import { CITY_NAME, HORIZON_DAYS } from './config.js';
+import { CITY_NAME } from './config.js';
 
 const TIMEZONE = 'Europe/Chisinau';
 const TELEGRAM_MAX_LEN = 4096;
@@ -42,18 +42,16 @@ export function getLocalDateString(now = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-/**
- * Filtreaza datele "YYYY-MM-DD" la fereastra [azi, azi+days], calculata in Europe/Chisinau.
- * Inlocuieste vechiul filtru pe "luna curenta + urmatoarea", care ascundea zile reale
- * spre finalul orizontului -- vezi HORIZON_DAYS in config.js. Foloseste daysUntil (aceeasi
- * logica de zile calendaristice ca restul mesajelor), nu comparatie de string pe prefix
- * de luna, ca fereastra sa fie corecta indiferent unde cade "azi" in luna.
- */
-export function filterWithinHorizon(dates, now = new Date(), days = HORIZON_DAYS) {
-  return dates.filter((d) => {
-    const diff = daysUntil(d.date, now);
-    return diff >= 0 && diff <= days;
-  });
+/** Filtreaza datele "YYYY-MM-DD" la luna curenta + urmatoarea, calculate in Europe/Chisinau. */
+export function filterCurrentAndNextMonth(dates, now = new Date()) {
+  const { year, month } = getLocalParts(now);
+  const y = Number(year);
+  const m = Number(month); // 1-12
+  const nextM = m === 12 ? 1 : m + 1;
+  const nextY = m === 12 ? y + 1 : y;
+  const curPrefix = `${y}-${String(m).padStart(2, '0')}`;
+  const nextPrefix = `${nextY}-${String(nextM).padStart(2, '0')}`;
+  return dates.filter((d) => d.date.startsWith(curPrefix) || d.date.startsWith(nextPrefix));
 }
 
 function dateParts(dateStr) {
@@ -226,26 +224,21 @@ function slotsWithWarning(timeSlots) {
   return timeSlots != null && timeSlots <= LOW_SLOTS_THRESHOLD ? `⚠️ ${label}` : label;
 }
 
-/**
- * O linie completa pentru o singura varianta (obisnuit SAU urgent) -- vezi comentariul de
- * mai sus. `targetDate`, optional -- data tinta setata din /setari ("Până la"); o zi care
- * o respecta primeste ✅ la inceputul randului, ca sa sara in ochi printre celelalte.
- */
-function liveVariantLine(label, entry, now, targetDate) {
+/** O linie completa pentru o singura varianta (obisnuit SAU urgent) -- vezi comentariul de mai sus. */
+function liveVariantLine(label, entry, now) {
   const labelText = escapeMarkdownV2(`${label}:`);
   if (!entry) {
     return `${labelText} ${escapeMarkdownV2('fără zile libere')}`;
   }
-  const hitsTarget = targetDate && entry.date <= targetDate;
   const parts = [
     `*${escapeMarkdownV2(formatDateHuman(entry.date))}*`,
     escapeMarkdownV2(`peste ${daysWord(daysUntil(entry.date, now))}`),
     slotsWithWarning(entry.timeSlots),
   ];
-  return `${hitsTarget ? '✅ ' : ''}${labelText} ${parts.join(' · ')}`;
+  return `${labelText} ${parts.join(' · ')}`;
 }
 
-function liveGroupLines(g, now, { withLocation, targetDate }) {
+function liveGroupLines(g, now, { withLocation }) {
   const obisnuitFirst = g.obisnuit ? sortByDate(g.obisnuit.dates)[0] ?? null : null;
   const urgentFirst = g.urgent ? sortByDate(g.urgent.dates)[0] ?? null : null;
 
@@ -255,8 +248,8 @@ function liveGroupLines(g, now, { withLocation, targetDate }) {
   // Randul apare doar daca varianta a fost citita cu succes de data asta (g.obisnuit/
   // g.urgent) -- o citire esuata nu genereaza un rand fals "fără zile libere", ci lipseste
   // complet (avertismentul agregat "N/8 categorii n-au putut fi citite" acopera cazul).
-  if (g.obisnuit) lines.push(`${indent}${liveVariantLine('obișnuit', obisnuitFirst, now, targetDate)}`);
-  if (g.urgent) lines.push(`${indent}${liveVariantLine('urgent', urgentFirst, now, targetDate)}`);
+  if (g.obisnuit) lines.push(`${indent}${liveVariantLine('obișnuit', obisnuitFirst, now)}`);
+  if (g.urgent) lines.push(`${indent}${liveVariantLine('urgent', urgentFirst, now)}`);
   return lines;
 }
 
@@ -267,7 +260,7 @@ function earliestOverall(g) {
   return a ?? b ?? '9999-99-99';
 }
 
-function buildLiveClosestLines(groups, now, targetDate) {
+function buildLiveClosestLines(groups, now) {
   const lines = [];
   const teoretic = groups.filter((g) => g.examType === 'teoretic');
   const practic = groups
@@ -277,14 +270,14 @@ function buildLiveClosestLines(groups, now, targetDate) {
   if (teoretic.length > 0) {
     lines.push(`📗 *${escapeMarkdownV2('Teoretic')}*`);
     for (const g of teoretic) {
-      lines.push(...liveGroupLines(g, now, { withLocation: false, targetDate }));
+      lines.push(...liveGroupLines(g, now, { withLocation: false }));
       lines.push('');
     }
   }
   if (practic.length > 0) {
     lines.push(`🚦 *${escapeMarkdownV2('Practic')}*`);
     for (const g of practic) {
-      lines.push(...liveGroupLines(g, now, { withLocation: true, targetDate }));
+      lines.push(...liveGroupLines(g, now, { withLocation: true }));
       lines.push('');
     }
   }
@@ -328,29 +321,18 @@ export function formatRangeLabel(range) {
 
 // --- Tabel monospace: zile x filiale, pentru proba practica ------------------------
 
-// Plafon de randuri -- fara el, orizontul de 90 de zile (HORIZON_DAYS) ar putea produce
-// un tabel suficient de lung incat splitMessage sa-l taie la mijloc, stricand blocul
-// ``` ``` (Markdown neinchis => Telegram raspunde 400). 25 de zile acopera confortabil
-// intervalul apropiat, care e si cel relevant.
-const PRACTIC_TABLE_MAX_ROWS = 25;
-
 /**
  * `-` = filiala nu are deschisa acea zi; `?` = zi deschisa dar nr. de locuri neafisat.
  * Randat intr-un bloc ``` ``` -- Telegram pastreaza spatiile, deci coloanele raman
- * aliniate doar daca folosim un font monospace (garantat de blocul de cod). Intoarce
- * { text, hiddenCount } -- hiddenCount > 0 cand tabelul a fost taiat la
- * PRACTIC_TABLE_MAX_ROWS, ca apelantul sa poata adauga o nota "+N zile dupa ...".
+ * aliniate doar daca folosim un font monospace (garantat de blocul de cod).
  */
 export function buildPracticTable(practicGroups) {
   const dateSet = new Set();
   for (const g of practicGroups) {
     for (const d of g.display?.dates ?? []) dateSet.add(d.date);
   }
-  const allDates = [...dateSet].sort();
-  if (allDates.length === 0) return null;
-
-  const hiddenCount = Math.max(0, allDates.length - PRACTIC_TABLE_MAX_ROWS);
-  const dates = allDates.slice(0, PRACTIC_TABLE_MAX_ROWS);
+  const dates = [...dateSet].sort();
+  if (dates.length === 0) return null;
 
   const dateColWidth = Math.max('Data'.length, ...dates.map((d) => formatDateCompact(d).length));
   const colWidths = practicGroups.map((g) => Math.max(g.locationAbbr.length, 1));
@@ -369,7 +351,7 @@ export function buildPracticTable(practicGroups) {
     return [formatDateCompact(date).padEnd(dateColWidth), ...cells].join(' ');
   });
 
-  return { text: [header, ...rows].join('\n'), hiddenCount, lastShownDate: dates[dates.length - 1] };
+  return [header, ...rows].join('\n');
 }
 
 /**
@@ -465,13 +447,10 @@ export function buildHeartbeatMessage({ categoryResults, now = new Date(), title
     const table = buildPracticTable(practicGroups);
     if (table) {
       lines.push('```');
-      lines.push(table.text);
+      lines.push(table);
       lines.push('```');
       lines.push(escapeMarkdownV2('-  = nicio dată afișată'));
       lines.push(escapeMarkdownV2('?  = neafișat încă'));
-      if (table.hiddenCount > 0) {
-        lines.push(escapeMarkdownV2(`+${table.hiddenCount} zile după ${formatDateHuman(table.lastShownDate)}`));
-      }
     } else {
       lines.push(escapeMarkdownV2('fără zile libere'));
     }
@@ -484,10 +463,8 @@ export function buildHeartbeatMessage({ categoryResults, now = new Date(), title
  * Raspuns la comanda "/acum" -- verificare LIVE la cerere, nu din state. Doar sectiunea
  * "cele mai apropiate date" (nu toata lista/tabelul) ca raspunsul sa fie scurt si citit
  * rapid pe telefon; detaliul complet oricum vine automat la heartbeat-ul zilnic.
- * `targetDate` ("YYYY-MM-DD"), optional -- tinta setata din /setari ("Până la"): adauga un
- * rand-antet si marcheaza cu ✅ zilele care o respecta (vezi liveVariantLine).
  */
-export function buildLiveNowMessage({ categoryResults, now = new Date(), targetDate = null }) {
+export function buildLiveNowMessage({ categoryResults, now = new Date() }) {
   const groups = groupCategoryResults(categoryResults);
   const { day, month, hour, minute } = getLocalParts(now);
   const timeText = `verificat ${Number(day)} ${MONTH_NAMES[Number(month) - 1]}, ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
@@ -495,17 +472,14 @@ export function buildLiveNowMessage({ categoryResults, now = new Date(), targetD
   const lines = [];
   lines.push(`🔴 *${escapeMarkdownV2(`LIVE · ${timeText}`)}*`);
   lines.push(`📍 ${escapeMarkdownV2(CITY_NAME)}`);
-  if (targetDate) {
-    lines.push(`🎯 ${escapeMarkdownV2(`Țintă: până la ${formatDateHuman(targetDate)}`)}`);
-  }
   lines.push('');
-  lines.push(...buildLiveClosestLines(groups, now, targetDate));
+  lines.push(...buildLiveClosestLines(groups, now));
   return lines.join('\n').trim();
 }
 
-export function buildFailureMessage(errorsByCategory, threshold = 3) {
+export function buildFailureMessage(errorsByCategory) {
   const lines = ['⚠️ *Monitorul ASP nu poate citi calendarul*', ''];
-  lines.push(escapeMarkdownV2(`${threshold} rulări la rând au eșuat pentru:`));
+  lines.push(escapeMarkdownV2('3 rulări la rând au eșuat pentru:'));
   for (const [label, message] of errorsByCategory) {
     lines.push(`• ${escapeMarkdownV2(label)}: ${escapeMarkdownV2(message)}`);
   }

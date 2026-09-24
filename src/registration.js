@@ -27,7 +27,7 @@ function idnpChecksumValid(digits) {
   return sum % 10 === Number(digits[12]);
 }
 
-export function validateIdnp(text) {
+function validateIdnp(text) {
   const v = text.trim();
   return /^\d{13}$/.test(v) && idnpChecksumValid(v) ? v : null;
 }
@@ -39,7 +39,7 @@ function validateSeria(text) {
 
 // Accepta "DD.MM.YYYY" sau "YYYY-MM-DD" -- formatul pe care oamenii il scriu de pe
 // buletin vs formatul ISO cerut de loadConfig/asp.js.
-export function parseIssueDate(text) {
+function parseIssueDate(text) {
   const v = text.trim();
   let year, month, day;
   const iso = v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -69,18 +69,6 @@ function promptSeria() {
 }
 function promptData() {
   return `Și *${escapeMarkdownV2('data eliberării buletinului (ex: 01.01.2020).')}*`;
-}
-function promptVehicle() {
-  return `Ultimul pas -- la proba practică, cutie *${escapeMarkdownV2('manuală')}* sau *${escapeMarkdownV2('automată')}*?`;
-}
-
-// Accepta atat butonul (🔧 Manuală / ⚙️ Automată) cat si scurtaturi scrise de mana
-// (m, manual, mecanica / a, automat) -- vezi VEHICLE_KEYBOARD in telegram.js.
-function validateVehicle(text) {
-  const v = text.trim().toLowerCase();
-  if (v === 'm' || v.includes('manual') || v.includes('mecanic')) return 'BMechanical';
-  if (v === 'a' || v.includes('automat')) return 'BAutomatic';
-  return null;
 }
 
 export function startRegistrationPrompt() {
@@ -143,18 +131,9 @@ export function advanceRegistration(pending, text) {
       const err = escapeMarkdownV2('Dată invalidă — folosește DD.MM.YYYY sau YYYY-MM-DD. Încearcă din nou.');
       return { reply: `❌ ${err}\n\n${promptData()}`, pending };
     }
-    return { reply: promptVehicle(), pending: { ...pending, step: 'vehicle', issueDate } };
-  }
-
-  if (step === 'vehicle') {
-    const vehicle = validateVehicle(text);
-    if (!vehicle) {
-      const err = escapeMarkdownV2('N-am înțeles — scrie „manuală” sau „automată” (ori apasă un buton).');
-      return { reply: `❌ ${err}\n\n${promptVehicle()}`, pending };
-    }
     return {
       reply: `✅ ${escapeMarkdownV2('Gata! Poți verifica acum cu /acum.')}`,
-      person: { idnp: pending.idnp, seriaAndNumber: pending.seria, issueDate: pending.issueDate, vehicle },
+      person: { idnp: pending.idnp, seriaAndNumber: pending.seria, issueDate },
     };
   }
 
@@ -208,12 +187,10 @@ export function buildHelpMessage({ isOwner, hasPerson, needsApproval }) {
   const lines = [`🤖 *${escapeMarkdownV2('Comenzi disponibile:')}*`, ''];
   if (isOwner) {
     lines.push(cmdLine('/acum', 'verifică live cele mai apropiate date la examen'));
-    lines.push(cmdLine('/setari', 'alege ce categorii/dată-țintă primesc alerte'));
     lines.push(cmdLine('/utilizatori', 'listează persoanele cu acces aprobat'));
     lines.push(cmdLine('/revoca <chat_id>', 'revocă accesul unei persoane'));
   } else if (hasPerson) {
     lines.push(cmdLine('/acum', 'verifică live cele mai apropiate date, cu datele tale salvate'));
-    lines.push(cmdLine('/setari', 'alege ce categorii/dată-țintă apar la /acum'));
     lines.push(cmdLine('/sterge', 'șterge datele tale salvate (IDNP/serie/dată)'));
   } else if (needsApproval) {
     // Nu aratam /inregistrare aici -- inainte de aprobare, comanda doar retrimite/

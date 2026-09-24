@@ -4,19 +4,6 @@
 
 export const API_BASE = 'https://eservicii.gov.md/asp/dimtcca/api';
 
-// ASP intoarce zile libere pe ~3 luni inainte -- 90 e orizontul folosit peste tot ca sa nu
-// pierdem date reale (vezi filterWithinHorizon in format.js). Vechea varianta filtra doar
-// pe "luna curenta + urmatoarea", ceea ce ascundea zile reale spre finalul orizontului
-// (ex: o filiala practica ce are prima zi libera abia in noiembrie disparea complet din
-// mesaje langa sfarsitul lui septembrie).
-export const HORIZON_DAYS = 90;
-
-// Punctul de intrare pe portal pentru fluxul APO01 (programare examen) -- e un SPA Blazor,
-// deci nu exista un link "adanc" catre pasul de programare din afara aplicatiei; userul
-// tot trebuie sa navigheze manual de aici. Folosit de butonul "Programează-te" de pe
-// alerte (vezi telegram.js) -- schimba aici daca ASP publica vreodata un link direct.
-export const BOOKING_URL = 'https://eservicii.gov.md/asp/dimtcca/';
-
 // Toate locatiile monitorizate sunt in Chisinau -- folosit ca titlu generic in mesaje,
 // filiala exacta apare in eticheta fiecarei categorii (vezi CATEGORIES mai jos).
 export const CITY_NAME = 'Chișinău';
@@ -55,9 +42,7 @@ const BASE_CATEGORIES = [
     emoji: '📗',
     examType: 'teoretic',
     urgent: false,
-    // Teoretic n-are segment de vehicul -- acelasi camp `servicePathPrefix` ca la practic
-    // (mai jos), ca buildCategories sa citeasca un singur camp indiferent de tipul examenului.
-    servicePathPrefix: 'TheoreticalExam/False',
+    servicePath: 'TheoreticalExam/False',
     locations: [LOCATIONS.salcamilor],
   },
   {
@@ -66,7 +51,7 @@ const BASE_CATEGORIES = [
     emoji: '📕',
     examType: 'teoretic',
     urgent: true,
-    servicePathPrefix: 'TheoreticalUrgentExam/False',
+    servicePath: 'TheoreticalUrgentExam/False',
     locations: [LOCATIONS.salcamilor],
   },
   {
@@ -75,8 +60,7 @@ const BASE_CATEGORIES = [
     emoji: '🚦',
     examType: 'practic',
     urgent: false,
-    // Fara ultimul segment (categoria de vehicul) -- adaugat de buildCategories, vezi mai jos.
-    servicePathPrefix: 'PracticalExam/False',
+    servicePath: 'PracticalExam/False/BMechanical',
     locations: [LOCATIONS.radautanu, LOCATIONS.ieasilor, LOCATIONS.salcamilor],
   },
   {
@@ -85,50 +69,28 @@ const BASE_CATEGORIES = [
     emoji: '🚨',
     examType: 'practic',
     urgent: true,
-    servicePathPrefix: 'PracticalUrgentExam/False',
+    servicePath: 'PracticalUrgentExam/False/BMechanical',
     locations: [LOCATIONS.radautanu, LOCATIONS.ieasilor, LOCATIONS.salcamilor],
   },
 ];
 
-// Categoriile de vehicul disponibile pentru proba practica -- confirmate live ambele
-// (vezi README). Fiecare persoana (proprietar sau guest) alege una la inregistrare;
-// implicit BMechanical, comportamentul de dinainte de aceasta optiune.
-export const VEHICLE_TYPES = ['BMechanical', 'BAutomatic'];
-export const DEFAULT_VEHICLE = 'BMechanical';
-
-/**
- * Construieste lista de categorii monitorizate pentru o categorie de vehicul data.
- * Fiecare (categorie, locatie) e monitorizat separat -- pentru categoriile teoretice
- * exista o singura locatie, deci eticheta ramane simpla; pentru cele practice, cu 3
- * filiale, eticheta include locatia ca sa fie clar unde anume s-a deschis ziua.
- *
- * Cheia categoriilor practice primeste sufixul `-auto` pentru BAutomatic -- altfel ar
- * coincide cu cheia categoriei mecanice (earliest/slots in state.js sunt indexate dupa
- * categoryKey), amestecand starea a doi useri care aleg vehicule diferite.
- */
-export function buildCategories(vehicle = DEFAULT_VEHICLE) {
-  const vehicleSuffix = vehicle === DEFAULT_VEHICLE ? '' : `-${vehicle.toLowerCase()}`;
-  return BASE_CATEGORIES.flatMap((cat) =>
-    cat.locations.map((loc) => {
-      const baseKey = cat.locations.length > 1 ? `${cat.key}-${loc.id}` : cat.key;
-      return {
-        key: cat.examType === 'practic' ? `${baseKey}${vehicleSuffix}` : baseKey,
-        label: cat.locations.length > 1 ? `${cat.label} — ${loc.short}` : cat.label,
-        emoji: cat.emoji,
-        examType: cat.examType,
-        urgent: cat.urgent,
-        servicePath: cat.examType === 'practic' ? `${cat.servicePathPrefix}/${vehicle}` : cat.servicePathPrefix,
-        locationName: loc.name,
-        locationId: loc.id,
-        locationShort: loc.short,
-        locationAbbr: loc.abbr,
-      };
-    }),
-  );
-}
-
-/** Comportamentul de dinainte de optiunea de vehicul: mereu BMechanical, folosit de tot ce nu cere altceva explicit. */
-export const CATEGORIES = buildCategories();
+// Fiecare (categorie, locatie) e monitorizat separat -- pentru categoriile teoretice
+// exista o singura locatie, deci eticheta ramane simpla; pentru cele practice, cu 3
+// filiale, eticheta include locatia ca sa fie clar unde anume s-a deschis ziua.
+export const CATEGORIES = BASE_CATEGORIES.flatMap((cat) =>
+  cat.locations.map((loc) => ({
+    key: cat.locations.length > 1 ? `${cat.key}-${loc.id}` : cat.key,
+    label: cat.locations.length > 1 ? `${cat.label} — ${loc.short}` : cat.label,
+    emoji: cat.emoji,
+    examType: cat.examType,
+    urgent: cat.urgent,
+    servicePath: cat.servicePath,
+    locationName: loc.name,
+    locationId: loc.id,
+    locationShort: loc.short,
+    locationAbbr: loc.abbr,
+  })),
+);
 
 const REQUIRED_ENV = [
   'ASP_IDNP',

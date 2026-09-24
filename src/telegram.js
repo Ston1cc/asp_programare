@@ -1,7 +1,6 @@
 // Client minimal Telegram Bot API -- fetch nativ, zero dependente.
 
 import { splitMessage } from './format.js';
-import { BOOKING_URL } from './config.js';
 
 // Tastaturi persistente (reply keyboard, NU inline) atasate la mesajele trimise de bot --
 // userul apasa un buton in loc sa scrie manual comanda. Textul butonului trebuie sa fie
@@ -18,13 +17,13 @@ import { BOOKING_URL } from './config.js';
 //   REGISTERED_KEYBOARD -- alta persoana care si-a salvat deja datele
 //   REGISTER_KEYBOARD   -- alta persoana necunoscuta botului
 export const ACUM_KEYBOARD = {
-  keyboard: [[{ text: '/acum' }, { text: '/setari' }], [{ text: '/help' }]],
+  keyboard: [[{ text: '/acum' }, { text: '/help' }]],
   resize_keyboard: true,
   is_persistent: true,
 };
 
 export const REGISTERED_KEYBOARD = {
-  keyboard: [[{ text: '/acum' }, { text: '/setari' }], [{ text: '/sterge' }, { text: '/help' }]],
+  keyboard: [[{ text: '/acum' }, { text: '/sterge' }], [{ text: '/help' }]],
   resize_keyboard: true,
   is_persistent: true,
 };
@@ -33,25 +32,6 @@ export const REGISTER_KEYBOARD = {
   keyboard: [[{ text: '/inregistrare' }, { text: '/help' }]],
   resize_keyboard: true,
   is_persistent: true,
-};
-
-// Tastatura de o singura data pentru pasul "vehicle" din inregistrare (src/registration.js)
-// -- disparea dupa apasare (one_time_keyboard), Telegram revine la ultima tastatura
-// persistenta (REGISTER_KEYBOARD, inca vizibila mai jos in acelasi flux) dupa ce userul
-// raspunde. Userul poate oricum scrie manual "manuală"/"automată" in loc sa apese.
-export const VEHICLE_KEYBOARD = {
-  keyboard: [[{ text: '🔧 Manuală' }, { text: '⚙️ Automată' }]],
-  resize_keyboard: true,
-  one_time_keyboard: true,
-};
-
-// Inline keyboard cu un buton "Programează-te", atasat mesajelor care anunta o zi noua/mai
-// devreme (alerta 🔥, zile noi, si raspunsul /acum) -- mai putine atingeri intre alerta si
-// deschiderea site-ului de programare. Deliberat un inline keyboard (nu reply keyboard),
-// ca sa nu inlocuiasca tastatura persistenta (ACUM/REGISTERED_KEYBOARD) de sub campul de
-// text; Telegram poate arata amandoua simultan (una sub mesaj, cealalta sub camp).
-export const BOOKING_KEYBOARD = {
-  inline_keyboard: [[{ text: '📝 Programează-te', url: BOOKING_URL }]],
 };
 
 /** Apel generic la Telegram Bot API -- restul functiilor din fisier sunt construite pe el. */
@@ -93,16 +73,9 @@ export async function answerCallbackQuery(botToken, callbackQueryId, text) {
   await callTelegram(botToken, 'answerCallbackQuery', { callback_query_id: callbackQueryId, text });
 }
 
-/**
- * Editeaza un mesaj deja trimis -- folosit ca sa marcheze decizia (Aprobat/Respins) pe
- * mesajul de cerere, si (cu `replyMarkup`) ca sa actualizeze tastatura inline in acelasi
- * mesaj cand /setari schimba o preferinta -- fara sa trimita un mesaj nou de fiecare
- * apasare de buton.
- */
-export async function editMessageText(botToken, chatId, messageId, text, replyMarkup) {
-  const payload = { chat_id: chatId, message_id: messageId, text, parse_mode: 'MarkdownV2' };
-  if (replyMarkup) payload.reply_markup = replyMarkup;
-  await callTelegram(botToken, 'editMessageText', payload);
+/** Editeaza un mesaj deja trimis -- folosit ca sa marcheze decizia (Aprobat/Respins) pe mesajul de cerere. */
+export async function editMessageText(botToken, chatId, messageId, text) {
+  await callTelegram(botToken, 'editMessageText', { chat_id: chatId, message_id: messageId, text, parse_mode: 'MarkdownV2' });
 }
 
 /** Sterge un mesaj -- folosit ca sa scoatem din chat mesajele in care userul a scris IDNP/serie/data. */
