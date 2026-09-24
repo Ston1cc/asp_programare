@@ -11,7 +11,17 @@ const EMPTY_STATE = () => ({
   earliest: {}, // { [categoryKey]: "YYYY-MM-DD" }
   slots: {}, // { "categoryKey|YYYY-MM-DD": { date, timeSlots } }
   initialized: {}, // { [categoryKey]: true } -- odata setat, categoria a fost deja evaluata
+  users: {}, // { [chatId]: emptyUserState() } -- diff-ul fiecarui utilizator inregistrat prin
+  // "/inregistrare", tinut separat de starea owner-ului (campurile de mai sus) pentru ca doi
+  // oameni diferiti pot avea date disponibile diferite la ASP (istoricul lor de programari
+  // conteaza in raspunsul qmatic/dates), deci nu pot fi diferentiati intr-un singur `earliest`.
 });
+
+/** Starea de diff pentru UN utilizator inregistrat -- aceeasi forma ca partea owner-ului din
+ * EMPTY_STATE, ca sa poata fi trecuta neschimbata prin computeDiff. */
+export function emptyUserState() {
+  return { earliest: {}, slots: {}, initialized: {}, lastHeartbeatDate: null, consecutiveFailures: 0 };
+}
 
 export async function loadState(path) {
   try {

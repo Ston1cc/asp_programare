@@ -2,14 +2,20 @@
 
 import { splitMessage } from './format.js';
 
-export async function sendTelegramMessage({ botToken, chatId }, text) {
+/**
+ * `overrideChatId` -- trimite catre alt chat decat cel din config (folosit pentru
+ * utilizatorii inregistrati prin "/inregistrare", fiecare cu propriul chat Telegram, spre
+ * deosebire de owner-ul unic dinainte, mereu pe `chatId` din config).
+ */
+export async function sendTelegramMessage({ botToken, chatId }, text, overrideChatId) {
+  const targetChatId = overrideChatId ?? chatId;
   const chunks = splitMessage(text);
   for (const chunk of chunks) {
     const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        chat_id: chatId,
+        chat_id: targetChatId,
         text: chunk,
         parse_mode: 'MarkdownV2',
         disable_web_page_preview: true,

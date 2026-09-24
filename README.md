@@ -41,6 +41,26 @@ periodică. (Varianta inițială, cu polling la 5 minute prin GitHub Actions, a 
 
 Monitorul **doar citește**. Nu plătește, nu rezervă, nu depune nicio cerere.
 
+### 3. Înregistrare multi-utilizator (`/inregistrare`, webhook pe Vercel)
+
+Botul e configurat implicit pentru **o singură persoană** (owner-ul, datele din `.env`/secrets
+— vezi mai jos). Oricine altcineva poate scrie botului **`/inregistrare`**, în privat, și
+parcurge o conversație ghidată (IDNP → serie buletin → data eliberării) ca să primească, pe
+propriul chat, aceleași verificări periodice + `/acum` live, cu propriile date.
+
+Fiecare utilizator înregistrat e verificat separat pe ASP (ASP poate întoarce zile diferite în
+funcție de cine întreabă) și primește alertele doar pe chatul lui. Comenzi:
+
+- `/inregistrare` — pornește înregistrarea (sau o reia, dacă era deja în curs)
+- `/anuleaza` — anulează înregistrarea în curs
+- `/dezinregistrare` — șterge datele și oprește verificările pentru acel chat
+
+**Notă de confidențialitate:** datele celor înregistrați (IDNP, serie buletin, data
+eliberării) se salvează în `state/users.json`, **comis în git** (la fel ca
+`state/slots.json`) — vezi secțiunea de configurare de mai jos. Chiar și cu repo-ul privat,
+datele rămân în istoricul git permanent (ștergerea unui user din fișierul curent nu le scoate
+din istoric). Are sens doar dacă repo-ul rămâne privat și accesibil doar celor de încredere.
+
 ## Configurare locală
 
 ```bash
@@ -72,6 +92,13 @@ Proiect Vercel separat (`asp-programare-webhook`), cu propriile environment vari
 | Env var | Descriere |
 |---|---|
 | `TELEGRAM_WEBHOOK_SECRET` | șir random; Telegram îl trimite înapoi pe fiecare cerere ca să dovedească faptul că e chiar el, nu oricine a ghicit URL-ul |
+| `GITHUB_TOKEN` | PAT (fine-grained, scopat doar la acest repo, permisiune Contents: Read and write) — necesar ca webhook-ul să poată scrie `state/users.json` la fiecare `/inregistrare`/`/dezinregistrare` |
+| `GITHUB_REPO` | `owner/repo`, ex. `Ston1cc/asp_programare` |
+| `GITHUB_BRANCH` | branch-ul în care se scrie (implicit `master`) |
+
+Fără `GITHUB_TOKEN`/`GITHUB_REPO`, `/inregistrare` și `/dezinregistrare` răspund cu un mesaj
+clar că nu sunt configurate pe acel deploy — restul comenzilor (owner-ul din `.env`) continuă
+să funcționeze neschimbat.
 
 Pași de configurare (o singură dată):
 1. Deploy `api/telegram-webhook.js` + `src/*.js` pe Vercel (funcție serverless, fără build).
@@ -87,16 +114,20 @@ de push-uri pe GitHub în configurația curentă).
 
 ```
 src/
-├─ index.js     orchestrator pentru verificarea periodică (heartbeat + alerte + diff)
-├─ live.js      interogare live + mesaj de răspuns, folosit de webhook
-├─ asp.js       client API ASP (service id → locație → zile)
-├─ config.js    categorii+locații monitorizate + validare env
-├─ state.js     persistență + diff (inclusiv logica de "cea mai devreme zi")
-├─ format.js    mesaje Telegram + utilitare de dată (fus Europe/Chisinau)
-└─ telegram.js  client Telegram Bot API
+├─ index.js           orchestrator verificare periodică -- owner + toți userii înregistrați
+├─ live.js            interogare live + mesaj de răspuns, folosit de webhook
+├─ asp.js             client API ASP (service id → locație → zile)
+├─ config.js          categorii+locații monitorizate + validare env (owner)
+├─ state.js           persistență + diff (inclusiv logica de "cea mai devreme zi")
+├─ users.js           validare + persistență locală a userilor înregistrați (folosit de index.js)
+├─ github-storage.js  citire/scriere state/users.json prin GitHub API (folosit de webhook)
+├─ format.js          mesaje Telegram + utilitare de dată (fus Europe/Chisinau)
+└─ telegram.js        client Telegram Bot API
 api/
-└─ telegram-webhook.js   funcție serverless (Vercel) — răspunde la "/acum"
-state/slots.json   stare persistată de verificarea periodică, comisă înapoi în repo de CI
+└─ telegram-webhook.js   funcție serverless (Vercel) — "/acum" + "/inregistrare"/"/dezinregistrare"
+state/
+├─ slots.json   stare persistată de verificarea periodică (owner), comisă înapoi în repo de CI
+└─ users.json   userii înregistrați prin "/inregistrare" + starea lor de diff, scris de webhook
 ```
 
 ## Note
