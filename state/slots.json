@@ -1,13 +1,13 @@
 {
-  "lastRun": "2026-10-01T13:38:01.262Z",
+  "lastRun": "2026-10-01T19:39:11.350Z",
   "lastHeartbeatDate": "2026-10-01",
   "consecutiveFailures": 0,
   "earliest": {
     "teoretic-obisnuit": "2026-10-27",
-    "teoretic-urgent": "2026-10-15",
+    "teoretic-urgent": "2026-10-16",
     "practic-obisnuit-salcamilor": "2026-11-02",
     "practic-urgent-salcamilor": "2026-10-23",
-    "practic-urgent-ieasilor": "2026-10-29",
+    "practic-urgent-ieasilor": "2026-10-30",
     "practic-obisnuit-radautanu": "2026-11-04",
     "practic-obisnuit-ieasilor": "2026-11-10"
   },
@@ -112,10 +112,6 @@
       "date": "2026-11-30",
       "timeSlots": null
     },
-    "teoretic-urgent|2026-10-15": {
-      "date": "2026-10-15",
-      "timeSlots": 2
-    },
     "teoretic-urgent|2026-10-16": {
       "date": "2026-10-16",
       "timeSlots": 7
@@ -142,7 +138,7 @@
     },
     "teoretic-urgent|2026-10-26": {
       "date": "2026-10-26",
-      "timeSlots": null
+      "timeSlots": 7
     },
     "teoretic-urgent|2026-10-27": {
       "date": "2026-10-27",
@@ -162,7 +158,7 @@
     },
     "practic-obisnuit-radautanu|2026-11-04": {
       "date": "2026-11-04",
-      "timeSlots": 6
+      "timeSlots": 5
     },
     "practic-obisnuit-radautanu|2026-11-05": {
       "date": "2026-11-05",
@@ -198,7 +194,7 @@
     },
     "practic-obisnuit-ieasilor|2026-11-10": {
       "date": "2026-11-10",
-      "timeSlots": 7
+      "timeSlots": 6
     },
     "practic-obisnuit-ieasilor|2026-11-11": {
       "date": "2026-11-11",
@@ -316,17 +312,13 @@
       "date": "2026-11-30",
       "timeSlots": null
     },
-    "practic-urgent-ieasilor|2026-10-29": {
-      "date": "2026-10-29",
-      "timeSlots": 3
-    },
     "practic-urgent-ieasilor|2026-10-30": {
       "date": "2026-10-30",
-      "timeSlots": 6
+      "timeSlots": 5
     },
     "practic-urgent-salcamilor|2026-10-23": {
       "date": "2026-10-23",
-      "timeSlots": 9
+      "timeSlots": 3
     },
     "practic-urgent-salcamilor|2026-10-26": {
       "date": "2026-10-26",
@@ -362,6 +354,6 @@
   "rateLimitedUntil": null,
   "aspDaily": {
     "date": "2026-10-01",
-    "count": 24
+    "count": 32
   }
 }
