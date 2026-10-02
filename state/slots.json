@@ -1,21 +1,17 @@
 {
-  "lastRun": "2026-10-01T23:59:17.250Z",
-  "lastHeartbeatDate": "2026-10-01",
+  "lastRun": "2026-10-02T05:56:43.322Z",
+  "lastHeartbeatDate": "2026-10-02",
   "consecutiveFailures": 0,
   "earliest": {
-    "teoretic-obisnuit": "2026-10-26",
+    "teoretic-obisnuit": "2026-10-27",
     "teoretic-urgent": "2026-10-16",
     "practic-obisnuit-salcamilor": "2026-11-02",
     "practic-urgent-salcamilor": "2026-10-26",
     "practic-urgent-ieasilor": "2026-10-30",
-    "practic-obisnuit-radautanu": "2026-11-02",
+    "practic-obisnuit-radautanu": "2026-11-04",
     "practic-obisnuit-ieasilor": "2026-11-10"
   },
   "slots": {
-    "teoretic-obisnuit|2026-10-26": {
-      "date": "2026-10-26",
-      "timeSlots": 1
-    },
     "teoretic-obisnuit|2026-10-27": {
       "date": "2026-10-27",
       "timeSlots": 7
@@ -42,7 +38,7 @@
     },
     "teoretic-obisnuit|2026-11-04": {
       "date": "2026-11-04",
-      "timeSlots": null
+      "timeSlots": 7
     },
     "teoretic-obisnuit|2026-11-05": {
       "date": "2026-11-05",
@@ -160,13 +156,9 @@
       "date": "2026-10-30",
       "timeSlots": null
     },
-    "practic-obisnuit-radautanu|2026-11-02": {
-      "date": "2026-11-02",
-      "timeSlots": 1
-    },
     "practic-obisnuit-radautanu|2026-11-04": {
       "date": "2026-11-04",
-      "timeSlots": 4
+      "timeSlots": 3
     },
     "practic-obisnuit-radautanu|2026-11-05": {
       "date": "2026-11-05",
@@ -190,7 +182,7 @@
     },
     "practic-obisnuit-radautanu|2026-11-19": {
       "date": "2026-11-19",
-      "timeSlots": null
+      "timeSlots": 7
     },
     "practic-obisnuit-radautanu|2026-11-20": {
       "date": "2026-11-20",
@@ -202,7 +194,7 @@
     },
     "practic-obisnuit-ieasilor|2026-11-10": {
       "date": "2026-11-10",
-      "timeSlots": 6
+      "timeSlots": 5
     },
     "practic-obisnuit-ieasilor|2026-11-11": {
       "date": "2026-11-11",
@@ -357,7 +349,7 @@
   },
   "rateLimitedUntil": null,
   "aspDaily": {
-    "date": "2026-10-01",
-    "count": 40
+    "date": "2026-10-02",
+    "count": 8
   }
 }
