@@ -1,11 +1,11 @@
 {
-  "lastRun": "2026-10-04T18:41:53.134Z",
+  "lastRun": "2026-10-04T22:23:56.350Z",
   "lastHeartbeatDate": "2026-10-04",
   "consecutiveFailures": 0,
   "earliest": {
     "teoretic-obisnuit": "2026-10-28",
-    "teoretic-urgent": "2026-10-19",
-    "practic-obisnuit-salcamilor": "2026-11-02",
+    "teoretic-urgent": "2026-10-16",
+    "practic-obisnuit-salcamilor": "2026-11-03",
     "practic-urgent-salcamilor": "2026-10-26",
     "practic-obisnuit-radautanu": "2026-11-04",
     "practic-obisnuit-ieasilor": "2026-11-11",
@@ -108,6 +108,10 @@
       "date": "2026-11-30",
       "timeSlots": null
     },
+    "teoretic-urgent|2026-10-16": {
+      "date": "2026-10-16",
+      "timeSlots": 1
+    },
     "teoretic-urgent|2026-10-19": {
       "date": "2026-10-19",
       "timeSlots": 5
@@ -134,7 +138,7 @@
     },
     "teoretic-urgent|2026-10-27": {
       "date": "2026-10-27",
-      "timeSlots": 7
+      "timeSlots": null
     },
     "teoretic-urgent|2026-10-28": {
       "date": "2026-10-28",
@@ -228,10 +232,6 @@
       "date": "2026-11-27",
       "timeSlots": null
     },
-    "practic-obisnuit-salcamilor|2026-11-02": {
-      "date": "2026-11-02",
-      "timeSlots": 1
-    },
     "practic-obisnuit-salcamilor|2026-11-03": {
       "date": "2026-11-03",
       "timeSlots": 9
@@ -246,7 +246,7 @@
     },
     "practic-obisnuit-salcamilor|2026-11-06": {
       "date": "2026-11-06",
-      "timeSlots": 13
+      "timeSlots": 12
     },
     "practic-obisnuit-salcamilor|2026-11-09": {
       "date": "2026-11-09",
@@ -258,7 +258,7 @@
     },
     "practic-obisnuit-salcamilor|2026-11-11": {
       "date": "2026-11-11",
-      "timeSlots": null
+      "timeSlots": 13
     },
     "practic-obisnuit-salcamilor|2026-11-12": {
       "date": "2026-11-12",
@@ -322,11 +322,11 @@
     },
     "practic-urgent-radautanu|2026-11-04": {
       "date": "2026-11-04",
-      "timeSlots": 2
+      "timeSlots": 6
     },
     "practic-urgent-salcamilor|2026-10-26": {
       "date": "2026-10-26",
-      "timeSlots": 3
+      "timeSlots": 1
     },
     "practic-urgent-salcamilor|2026-10-27": {
       "date": "2026-10-27",
@@ -370,6 +370,6 @@
   "rateLimitedUntil": null,
   "aspDaily": {
     "date": "2026-10-04",
-    "count": 32
+    "count": 40
   }
 }
