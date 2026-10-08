@@ -20,7 +20,7 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -38,6 +38,20 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: node src/index.js
+
+      # Notificarile invitatilor ruleaza pe Vercel (api/notify-guests.js), nu aici: datele lor
+      # sunt criptate cu USER_DATA_KEY, care ramane doar in Vercel. Dupa verificarea
+      # proprietarului, indiferent de rezultatul ei (`always()`); un esec aici nu face run-ul
+      # rosu (`continue-on-error`) -- proprietarul si-a primit deja verificarea.
+      - name: Notifica invitatii
+        if: always()
+        continue-on-error: true
+        env:
+          NOTIFY_SECRET: ${{ secrets.NOTIFY_SECRET }}
+        run: |
+          curl -sS --fail-with-body --max-time 150 -X POST \
+            -H "Authorization: Bearer $NOTIFY_SECRET" \
+            https://asp-programare-webhook.vercel.app/api/notify-guests
 
       # `always()` -- daca pasul de verificare iese cu cod 1 (toate categoriile au picat),
       # state-ul (streak-ul de esecuri, rateLimitedUntil) trebuie totusi salvat; fara asta

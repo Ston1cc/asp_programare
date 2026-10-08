@@ -23,7 +23,7 @@ export const ACUM_KEYBOARD = {
 };
 
 export const REGISTERED_KEYBOARD = {
-  keyboard: [[{ text: '/acum' }, { text: '/sterge' }], [{ text: '/help' }]],
+  keyboard: [[{ text: '/acum' }, { text: '/sterge' }], [{ text: '/notificari' }, { text: '/help' }]],
   resize_keyboard: true,
   is_persistent: true,
 };

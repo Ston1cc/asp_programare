@@ -14,6 +14,7 @@ const cfg = loadConfig();
 const ALL_COMMANDS = [
   { command: 'acum', description: 'Verifică live cele mai apropiate date la examen' },
   { command: 'inregistrare', description: 'Introdu IDNP/serie/dată ca să folosești botul în numele tău' },
+  { command: 'notificari', description: 'Pornește/oprește notificările automate' },
   { command: 'sterge', description: 'Șterge datele tale salvate' },
   { command: 'help', description: 'Lista comenzilor disponibile' },
 ];

@@ -256,6 +256,64 @@ export async function setAspBlock(idnp, until) {
   await client.set(aspBlockKey(idnp), until.toISOString(), { EX: ttl });
 }
 
+// --- Notificari automate pentru invitati (src/guests.js) -------------------------------
+//
+// `checker:guest:<chatId>` = state-ul de diff al invitatului (zile libere publice + flaguri,
+// acelasi format ca state/slots.json al proprietarului) -- fara date personale, deci
+// necriptat. TTL reinnoit la fiecare rulare: un invitat inactiv (sters/revocat fara ca
+// cheia sa fi fost curatata) dispare singur.
+// `notify:<chatId>` = 'off' cand invitatul si-a oprit notificarile; lipsa = pornite.
+
+const GUEST_STATE_TTL_SECONDS = 60 * 60 * 24 * 90;
+
+export async function getGuestState(chatId) {
+  const client = await getClient();
+  const raw = await client.get(`checker:guest:${chatId}`);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export async function setGuestState(chatId, state) {
+  const client = await getClient();
+  await client.set(`checker:guest:${chatId}`, JSON.stringify(state), { EX: GUEST_STATE_TTL_SECONDS });
+}
+
+export async function isNotifyEnabled(chatId) {
+  const client = await getClient();
+  return (await client.get(`notify:${chatId}`)) !== 'off';
+}
+
+export async function setNotifyEnabled(chatId, enabled) {
+  const client = await getClient();
+  if (enabled) await client.del(`notify:${chatId}`);
+  else await client.set(`notify:${chatId}`, 'off');
+}
+
+/** Sterge tot ce tine de notificarile unui chat (la /sterge si /revoca). */
+export async function deleteGuestNotifyData(chatId) {
+  const client = await getClient();
+  await client.del([`checker:guest:${chatId}`, `notify:${chatId}`]);
+}
+
+/**
+ * Lock cu TTL impotriva a doua rulari simultane ale buclei de invitati (ex. CI + un apel
+ * manual) -- altfel ar trimite fiecare alerta de doua ori. Expira singur daca o invocare
+ * se agata. true = lock obtinut; apelantul trebuie sa-l elibereze cu releaseGuestRunLock.
+ */
+export async function tryAcquireGuestRunLock(ttlSeconds = 150) {
+  const client = await getClient();
+  return (await client.set('checker:guests:lock', '1', { EX: ttlSeconds, NX: true })) === 'OK';
+}
+
+export async function releaseGuestRunLock() {
+  const client = await getClient();
+  await client.del('checker:guests:lock');
+}
+
 /** Incrementeaza contorul global pe fereastra curenta; true daca s-a depasit pragul. */
 export async function isGlobalRateLimited(max = RATE_LIMIT_GLOBAL_MAX) {
   const client = await getClient();

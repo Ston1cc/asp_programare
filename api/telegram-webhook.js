@@ -14,7 +14,7 @@
 //     fara el, oricine putea sa-si inregistreze IDNP-ul, facand din proprietar operator
 //     de date personale pentru straini, fara control.
 
-import { timingSafeEqual } from 'node:crypto';
+import { isValidSecret } from '../src/secret.js';
 import { loadConfig } from '../src/config.js';
 import { TRIGGER_COMMANDS, buildLiveReply } from '../src/live.js';
 import {
@@ -32,6 +32,10 @@ import {
   REGISTER_COMMANDS,
   DELETE_COMMAND,
   HELP_COMMAND,
+  NOTIFY_COMMAND,
+  NOTIFY_ON_MESSAGE,
+  NOTIFY_OFF_MESSAGE,
+  NOTIFY_NEEDS_REGISTRATION_MESSAGE,
   LIST_USERS_COMMAND,
   REVOKE_COMMAND,
   LIST_REQUESTS_COMMAND,
@@ -63,6 +67,9 @@ import {
   isGlobalRateLimited,
   getAspBlock,
   setAspBlock,
+  isNotifyEnabled,
+  setNotifyEnabled,
+  deleteGuestNotifyData,
 } from '../src/userStore.js';
 
 export const config = { maxDuration: 30 };
@@ -149,18 +156,6 @@ async function runUserLiveCheck(botToken, chatId, person, keyboard) {
   await replyTo(botToken, chatId, await liveReplyText(person), keyboard);
 }
 
-// Comparare in timp constant -- altfel un atacator ar putea deduce secretul caracter cu
-// caracter din cat de repede raspunde un `!==` obisnuit (timing attack). Lungimi diferite
-// tratate explicit: timingSafeEqual arunca in loc sa intoarca false daca buffer-ele nu au
-// aceeasi lungime.
-function isValidSecret(received, expected) {
-  if (!received || !expected) return false;
-  const a = Buffer.from(received);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
-
 async function handleOwnerMessage(cfg, rawText, text) {
   const { botToken, chatId } = cfg.telegram;
 
@@ -233,6 +228,7 @@ async function handleOwnerMessage(cfg, rawText, text) {
     await deleteAccess(targetChatId);
     await deletePerson(targetChatId);
     await clearPendingRegistration(targetChatId);
+    await deleteGuestNotifyData(targetChatId);
     await replyTo(botToken, chatId, escapeMarkdownV2(`Acces revocat pentru chat_id ${targetChatId}.`), ACUM_KEYBOARD);
     return;
   }
@@ -280,7 +276,8 @@ async function handleGuestMessage(cfg, message, rawText, text) {
   if (text === DELETE_COMMAND) {
     await deletePerson(chatId);
     await clearPendingRegistration(chatId);
-    await replyTo(botToken, chatId, escapeMarkdownV2('🗑️ Datele tale au fost șterse.'), REGISTER_KEYBOARD);
+    await deleteGuestNotifyData(chatId);
+    await replyTo(botToken, chatId, escapeMarkdownV2('🗑️ Datele tale au fost șterse (și notificările automate).'), REGISTER_KEYBOARD);
     return;
   }
 
@@ -326,6 +323,19 @@ async function handleGuestMessage(cfg, message, rawText, text) {
       }
     }
     await replyTo(botToken, chatId, ACCESS_REQUESTED_MESSAGE, REGISTER_KEYBOARD);
+    return;
+  }
+
+  // Inaintea starii `pending`: ca /help, nu trebuie inghitit de validarea unui pas.
+  if (text === NOTIFY_COMMAND) {
+    const person = await getPerson(chatId);
+    if (!person) {
+      await replyTo(botToken, chatId, NOTIFY_NEEDS_REGISTRATION_MESSAGE, REGISTER_KEYBOARD);
+      return;
+    }
+    const nowEnabled = !(await isNotifyEnabled(chatId));
+    await setNotifyEnabled(chatId, nowEnabled);
+    await replyTo(botToken, chatId, nowEnabled ? NOTIFY_ON_MESSAGE : NOTIFY_OFF_MESSAGE, REGISTERED_KEYBOARD);
     return;
   }
 
