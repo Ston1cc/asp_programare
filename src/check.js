@@ -6,6 +6,7 @@
 import { CATEGORIES } from './config.js';
 import { fetchCategoryDates, RateLimitError } from './asp.js';
 import { computeDiff } from './state.js';
+import { DEFAULT_PREFS, applyPrefsToEvents, filterCategoryResultsByPrefs } from './prefs.js';
 import {
   filterCurrentAndNextMonth,
   buildAlertMessage,
@@ -25,8 +26,12 @@ export const HEARTBEAT_MINUTE = 30;
  * isFirstEverRun }. `messages` = doar mesajele de DATE (alerta + heartbeat); mesajul de
  * limita ASP si alerta de esec le adauga apelantul (difera intre proprietar si invitati).
  * La prima RateLimitError opreste bucla -- restul categoriilor ar primi acelasi 429.
+ *
+ * `prefs` (src/prefs.js, /setari) filtreaza DOAR ce apare in mesaje. Fetch-ul si diff-ul
+ * ruleaza mereu pe toate categoriile -- altfel reactivarea unei categorii ar arata ca un
+ * "record" fals fata de un baseline vechi.
  */
-export async function checkPerson({ person, state, now = new Date(), cache, categories = CATEGORIES, fetchDates = fetchCategoryDates }) {
+export async function checkPerson({ person, state, now = new Date(), cache, categories = CATEGORIES, prefs = DEFAULT_PREFS, fetchDates = fetchCategoryDates }) {
   const categoryResults = [];
   const errors = [];
   let rateLimit = null;
@@ -60,9 +65,13 @@ export async function checkPerson({ person, state, now = new Date(), cache, cate
   if (categoryResults.length > 0) {
     const { earlierDays, newLaterDays, nextState: computedState } = computeDiff(state, categoryResults);
     nextState = computedState;
-    const alertMsg = buildAlertMessage({ earlierDays, newLaterDays });
+    const alertMsg = buildAlertMessage(applyPrefsToEvents(prefs, { earlierDays, newLaterDays }));
     if (alertMsg) messages.push(alertMsg);
   }
+
+  // Rezumatul/prima citire arata doar categoriile alese; daca nu a ramas niciuna, nu trimitem
+  // un rezumat gol, dar ziua de rezumat se considera tratata (altfel se reincearca la fiecare rulare).
+  const shownResults = filterCategoryResultsByPrefs(prefs, categoryResults);
 
   const { hour: localHour, minute: localMinute } = getLocalParts(now);
   const todayLocal = getLocalDateString(now);
@@ -70,12 +79,12 @@ export async function checkPerson({ person, state, now = new Date(), cache, cate
     localHour * 60 + localMinute >= HEARTBEAT_HOUR * 60 + HEARTBEAT_MINUTE &&
     nextState.lastHeartbeatDate !== todayLocal;
   if (heartbeatDue && categoryResults.length > 0) {
-    messages.push(buildHeartbeatMessage({ categoryResults, now }));
+    if (shownResults.length > 0) messages.push(buildHeartbeatMessage({ categoryResults: shownResults, now }));
     nextState = { ...nextState, lastHeartbeatDate: todayLocal };
-  } else if (isFirstEverRun && categoryResults.length > 0) {
+  } else if (isFirstEverRun && shownResults.length > 0) {
     // Fara asta, daca prima rulare cade inainte de ora heartbeat-ului, persoana nu primeste
     // niciun mesaj si nu are cum sa stie ca monitorul chiar functioneaza.
-    messages.push(buildHeartbeatMessage({ categoryResults, now, title: 'Monitor pornit — prima citire' }));
+    messages.push(buildHeartbeatMessage({ categoryResults: shownResults, now, title: 'Monitor pornit — prima citire' }));
   }
 
   return { nextState, messages, categoryResults, errors, rateLimit, attempted, isFirstEverRun };

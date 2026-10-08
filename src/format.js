@@ -491,7 +491,7 @@ export function buildFailureMessage(errorsByCategory) {
 // `until` vine din Retry-After-ul ASP (23:59:59 UTC) -- rotunjit in sus cu 1s, ca sa afisam
 // ora reala de reset (00:00 UTC = 03:00 Chisinau vara), nu "02:59". "(mâine)" cand ziua
 // locala difera de azi, ca sa nu para ca limita expira in urma.
-function formatBlockUntil(until, now) {
+export function formatBlockUntil(until, now) {
   const reset = new Date(until.getTime() + 1000);
   const { hour, minute } = getLocalParts(reset);
   const hhmm = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;

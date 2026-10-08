@@ -17,6 +17,22 @@ export const LIST_USERS_COMMAND = '/utilizatori';
 export const REVOKE_COMMAND = '/revoca';
 export const LIST_REQUESTS_COMMAND = '/cereri';
 export const NOTIFY_COMMAND = '/notificari';
+export const STATUS_COMMAND = '/status';
+
+// /sterge cere confirmare: e un buton din tastatura, un tap gresit nu trebuie sa stearga datele.
+export const DELETE_CONFIRM_PROMPT = `🗑️ ${escapeMarkdownV2(
+  'Sigur vrei să-ți ștergi datele (IDNP, serie, dată), setările și notificările automate? Va trebui să te reînregistrezi.',
+)}`;
+export const DELETE_DONE_MESSAGE = `🗑️ ${escapeMarkdownV2('Datele tale au fost șterse (și notificările automate).')}`;
+export const DELETE_CANCELLED_MESSAGE = escapeMarkdownV2('Anulat — datele tale au rămas.');
+export const DELETE_CONFIRM_KEYBOARD = {
+  inline_keyboard: [
+    [
+      { text: '🗑️ Da, șterge', callback_data: 'del:yes' },
+      { text: 'Anulează', callback_data: 'del:no' },
+    ],
+  ],
+};
 
 // Raspunsurile la /notificari spun mereu si ce se intampla ACUM si cum se schimba -- cerinta
 // explicita: faptul ca notificarile pot fi oprite trebuie sa fie evident, nu ascuns.
@@ -211,11 +227,14 @@ export function buildHelpMessage({ isOwner, hasPerson, needsApproval }) {
   const lines = [`🤖 *${escapeMarkdownV2('Comenzi disponibile:')}*`, ''];
   if (isOwner) {
     lines.push(cmdLine('/acum', 'verifică live cele mai apropiate date la examen'));
+    lines.push(cmdLine('/status', 'starea checker-ului, limita ASP și invitații'));
+    lines.push(cmdLine('/setari', 'alege ce categorii/filiale/dată-țintă apar la /acum și în alerte'));
     lines.push(cmdLine('/utilizatori', 'listează persoanele cu acces aprobat'));
     lines.push(cmdLine('/cereri', 'listează toate cererile de acces (în așteptare + decise)'));
     lines.push(cmdLine('/revoca <chat_id>', 'revocă accesul unei persoane'));
   } else if (hasPerson) {
     lines.push(cmdLine('/acum', 'verifică live cele mai apropiate date, cu datele tale salvate'));
+    lines.push(cmdLine('/setari', 'alege ce categorii/filiale/dată-țintă apar la /acum și în alerte'));
     lines.push(cmdLine('/notificari', 'pornește/oprește notificările automate (alerte + rezumat 07:30)'));
     lines.push(cmdLine('/sterge', 'șterge datele tale salvate (IDNP/serie/dată)'));
   } else if (needsApproval) {

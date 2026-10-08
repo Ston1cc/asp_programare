@@ -46,6 +46,35 @@ because they have fundamentally different latency requirements.
   (`buildRateLimitMessage`), and make **zero** ASP requests until that time. A limited run
   exits 0 and leaves `consecutiveFailures` untouched — a 429 says nothing about the site's
   structure, unlike the "all categories failed" case the streak/alert exists for.
+- **`/setari`, `/status`, `/sterge` confirmation (`src/prefs.js`, `src/status.js`,
+  `api/owner-prefs.js`)** —
+  `/setari` (owner + approved guests): inline toggles for teoretic/practic,
+  obișnuit/urgent, each practic filiala, plus "📅 Până la" (a date target; the next text
+  message is read as `pending: { step: 'prefBefore' }`, handled *separately* from the
+  registration steps even though it shares the `pending:<chatId>` key, and a `/command`
+  typed instead of an answer cancels it and runs normally). Prefs are stored plain in
+  `prefs:<chatId>` (booleans + a date, no personal data). **Filtering is display-only,
+  never diff-level:** `checkPerson` fetches and `computeDiff`s *all* 8 categories and only
+  then applies `applyPrefsToEvents`/`filterCategoryResultsByPrefs` to what gets sent —
+  otherwise re-enabling a category would look like a false "record" against a stale
+  baseline. `/acum` is the exception on the fetch side: `buildLiveReply(person, { prefs })`
+  reads only `selectCategories(prefs)`, which also saves ASP quota. The filiala filter
+  applies to practic only (teoretic's single filiala, Salcâmilor, shares a `locationId`
+  with one of practic's three and must not vanish when it's unchecked under practic).
+  `pref:<path>` and `del:yes|no` callbacks are deliberately **not** owner-gated like
+  `approve:`/`deny:`: their payload never carries a target chat id, so the action always
+  applies to `cq.from.id` (the identity Telegram confirms) — nobody can touch another
+  chat's settings or data by pressing a button. **The owner's prefs reach CI through
+  `api/owner-prefs.js`** (`GET`, Bearer `NOTIFY_SECRET`): Redis is only reachable from
+  Vercel, so `src/index.js` fetches them at the start of a run (5s timeout) and any failure
+  falls back to `DEFAULT_PREFS` (show everything — a redundant alert beats a lost one).
+  `/status` (owner only; `/status` is no longer an alias of `/acum`) is built by the pure
+  `buildStatusMessage` from `status:owner` (the owner's `state/slots.json` fields, which CI
+  POSTs as the body of its `/api/notify-guests` call, so a failed check still reports its
+  stale `lastRun` — warned about after 3h), `status:guests` (last guest-run summary) and
+  live Redis counts. `/sterge` now only asks (`DELETE_CONFIRM_KEYBOARD`); the deletion runs
+  in `handleDeleteCallback` after "Da, șterge", because it's a persistent keyboard button
+  and one stray tap used to erase a guest's data.
 - **Guest notifications (`src/check.js`, `src/guests.js`, `api/notify-guests.js`)** —
   approved + registered guests get the same automatic messages as the owner (alert on an
   earlier/new date + 07:30 summary), on *their own* IDNP and ASP quota. `src/check.js`
@@ -75,7 +104,8 @@ because they have fundamentally different latency requirements.
   every date re-alerted as "new" on the next successful read — multiplied by guests.
 - **`api/telegram-webhook.js`** — on-demand command responder, deployed as a Vercel
   serverless function and registered with Telegram via `setWebhook`. When the configured
-  chat sends a recognized command (`/acum`, `/live`, `/status`, `/check`, `/help`, plus
+  chat sends a recognized command (`/acum`, `/live`, `/check`, `/help`, `/setari`, plus
+  owner-only `/status`, and
   `/inregistrare`/`/start`/`/sterge` for non-owner chats — see below), Telegram POSTs
   the update directly here — no polling, no state, response in ~1-2s. `/help` is checked
   **before** the pending-registration check in the non-owner branch — it's the escape

@@ -29,8 +29,23 @@ import {
 } from '../src/telegram.js';
 import { escapeMarkdownV2, buildAspBlockedMessage } from '../src/format.js';
 import {
+  SETTINGS_COMMAND,
+  PREF_BEFORE_PROMPT,
+  normalizePrefs,
+  togglePref,
+  parsePrefBeforeInput,
+  buildSettingsKeyboard,
+  buildSettingsSummary,
+} from '../src/prefs.js';
+import { buildStatusMessage } from '../src/status.js';
+import {
   REGISTER_COMMANDS,
   DELETE_COMMAND,
+  DELETE_CONFIRM_PROMPT,
+  DELETE_CONFIRM_KEYBOARD,
+  DELETE_DONE_MESSAGE,
+  DELETE_CANCELLED_MESSAGE,
+  STATUS_COMMAND,
   HELP_COMMAND,
   NOTIFY_COMMAND,
   NOTIFY_ON_MESSAGE,
@@ -70,6 +85,9 @@ import {
   isNotifyEnabled,
   setNotifyEnabled,
   deleteGuestNotifyData,
+  getPrefs,
+  setPrefs,
+  getStatus,
 } from '../src/userStore.js';
 
 export const config = { maxDuration: 30 };
@@ -107,14 +125,21 @@ function buildApproveKeyboard(targetChatId) {
  * pica, verificarea live merge oricum (doar fara memoria blocarii), ca proprietarul sa nu
  * depinda de Redis pentru /acum, ca inainte.
  */
-async function liveReplyText(person) {
+async function liveReplyText(person, chatId) {
   try {
     const blockedUntil = await getAspBlock(person.idnp);
     if (blockedUntil) return buildAspBlockedMessage({ until: blockedUntil });
   } catch (err) {
     console.error('Eroare la citirea blocarii ASP (Redis):', err.message);
   }
-  const { message, rateLimitedUntil } = await buildLiveReply(person);
+  // Setarile (/setari) sunt tot best-effort: daca Redis nu raspunde, /acum arata tot, ca inainte.
+  let prefs = normalizePrefs(null);
+  try {
+    prefs = normalizePrefs(await getPrefs(chatId));
+  } catch (err) {
+    console.error('Eroare la citirea setarilor (Redis):', err.message);
+  }
+  const { message, rateLimitedUntil } = await buildLiveReply(person, { prefs });
   if (rateLimitedUntil) {
     try {
       await setAspBlock(person.idnp, rateLimitedUntil);
@@ -134,7 +159,7 @@ async function runOwnerLiveCheck(botToken, chatId, person, keyboard) {
     return;
   }
   ownerLastCheckAt = now;
-  await replyTo(botToken, chatId, await liveReplyText(person), keyboard);
+  await replyTo(botToken, chatId, await liveReplyText(person, chatId), keyboard);
 }
 
 async function runUserLiveCheck(botToken, chatId, person, keyboard) {
@@ -153,14 +178,118 @@ async function runUserLiveCheck(botToken, chatId, person, keyboard) {
     await replyTo(botToken, chatId, UNAVAILABLE_MESSAGE, keyboard);
     return;
   }
-  await replyTo(botToken, chatId, await liveReplyText(person), keyboard);
+  await replyTo(botToken, chatId, await liveReplyText(person, chatId), keyboard);
+}
+
+// --- /setari: trimitere, "Pana la" (pending), callback-uri --------------------------------
+
+async function sendSettings(botToken, chatId, errorKeyboard) {
+  let prefs;
+  try {
+    prefs = normalizePrefs(await getPrefs(chatId));
+  } catch (err) {
+    console.error('Eroare la citirea setarilor (Redis):', err.message);
+    await replyTo(botToken, chatId, UNAVAILABLE_MESSAGE, errorKeyboard);
+    return;
+  }
+  await replyTo(botToken, chatId, buildSettingsSummary(), buildSettingsKeyboard(prefs));
+}
+
+/**
+ * Raspunsul la promptul "Pana la" (`pending.step === 'prefBefore'`). Intoarce true daca mesajul
+ * a fost tratat aici; false daca era o comanda (`/...`) -- atunci cererea de tinta se anuleaza
+ * si apelantul continua sa proceseze comanda normal, in loc s-o valideze ca pe o data.
+ */
+async function handlePrefBefore(botToken, chatId, rawText, keyboard) {
+  if (rawText.startsWith('/')) {
+    await clearPendingRegistration(chatId);
+    return false;
+  }
+  const result = parsePrefBeforeInput(rawText);
+  if (!result.ok) {
+    await replyTo(
+      botToken,
+      chatId,
+      `❌ ${escapeMarkdownV2('Dată invalidă — folosește DD.MM.YYYY sau YYYY-MM-DD, ori 0 ca să o ștergi.')}`,
+      keyboard,
+    );
+    return true;
+  }
+  const prefs = normalizePrefs(await getPrefs(chatId));
+  await setPrefs(chatId, { ...prefs, before: result.before });
+  await clearPendingRegistration(chatId);
+  await replyTo(
+    botToken,
+    chatId,
+    result.before ? escapeMarkdownV2('✅ Țintă setată. Vezi mai jos.') : escapeMarkdownV2('✅ Ținta a fost ștearsă.'),
+    keyboard,
+  );
+  await sendSettings(botToken, chatId, keyboard);
+  return true;
+}
+
+/**
+ * /status (doar admin): starea checker-ului (trimisa de CI la api/notify-guests.js), a limitei
+ * ASP, a invitatilor si setarile adminului -- ca sa nu mai trebuiasca citite logurile GitHub.
+ */
+async function handleOwnerStatus(cfg) {
+  const { botToken, chatId } = cfg.telegram;
+  const [owner, guests, all, ownerBlockedUntil, rawPrefs] = await Promise.all([
+    getStatus('owner'),
+    getStatus('guests'),
+    listAllAccess(),
+    getAspBlock(cfg.person.idnp),
+    getPrefs(chatId),
+  ]);
+  const approved = all.filter((r) => r.status === 'approved');
+  const registered = (await Promise.all(approved.map((r) => getPerson(r.chatId)))).filter(Boolean).length;
+  const notifyOff = (await Promise.all(approved.map((r) => isNotifyEnabled(r.chatId)))).filter((on) => !on).length;
+  const counts = {
+    approved: approved.length,
+    registered,
+    notifyOff,
+    pending: all.filter((r) => r.status === 'pending').length,
+  };
+  await replyTo(
+    botToken,
+    chatId,
+    buildStatusMessage({ owner, guests, counts, ownerBlockedUntil, prefs: normalizePrefs(rawPrefs) }),
+    ACUM_KEYBOARD,
+  );
 }
 
 async function handleOwnerMessage(cfg, rawText, text) {
   const { botToken, chatId } = cfg.telegram;
 
+  // Raspunsul la "📅 Până la" (setat de butonul din /setari). Citirea pending-ului e
+  // best-effort: daca Redis nu raspunde, restul comenzilor adminului merg ca inainte.
+  let pending = null;
+  try {
+    pending = await getPendingRegistration(chatId);
+  } catch (err) {
+    console.error('Eroare la citirea pending (owner):', err.message);
+  }
+  if (pending?.step === 'prefBefore' && (await handlePrefBefore(botToken, chatId, rawText, ACUM_KEYBOARD))) {
+    return;
+  }
+
   if (text === HELP_COMMAND) {
     await replyTo(botToken, chatId, buildHelpMessage({ isOwner: true }), ACUM_KEYBOARD);
+    return;
+  }
+
+  if (text === STATUS_COMMAND) {
+    try {
+      await handleOwnerStatus(cfg);
+    } catch (err) {
+      console.error('Eroare la /status:', err.message);
+      await replyTo(botToken, chatId, UNAVAILABLE_MESSAGE, ACUM_KEYBOARD);
+    }
+    return;
+  }
+
+  if (text === SETTINGS_COMMAND) {
+    await sendSettings(botToken, chatId, ACUM_KEYBOARD);
     return;
   }
 
@@ -273,11 +402,10 @@ async function handleGuestMessage(cfg, message, rawText, text) {
     return;
   }
 
+  // /sterge nu mai sterge direct: e un buton din tastatura, un tap gresit n-ar trebui sa
+  // distruga datele. Stergerea reala se face in handleDeleteCallback, dupa confirmare.
   if (text === DELETE_COMMAND) {
-    await deletePerson(chatId);
-    await clearPendingRegistration(chatId);
-    await deleteGuestNotifyData(chatId);
-    await replyTo(botToken, chatId, escapeMarkdownV2('🗑️ Datele tale au fost șterse (și notificările automate).'), REGISTER_KEYBOARD);
+    await replyTo(botToken, chatId, DELETE_CONFIRM_PROMPT, DELETE_CONFIRM_KEYBOARD);
     return;
   }
 
@@ -339,8 +467,21 @@ async function handleGuestMessage(cfg, message, rawText, text) {
     return;
   }
 
+  if (text === SETTINGS_COMMAND) {
+    await sendSettings(botToken, chatId, await guestKeyboardFor(chatId));
+    return;
+  }
+
   // De aici incolo: acces aprobat -- comportamentul de dinainte de audit-ul de securitate.
-  const pending = await getPendingRegistration(chatId);
+  let pending = await getPendingRegistration(chatId);
+  // "Pana la" din /setari foloseste aceeasi cheie `pending`, dar NU e un pas de inregistrare --
+  // il tratam separat, altfel ar fi validat ca IDNP. O comanda scrisa in loc de raspuns anuleaza
+  // cererea (handlePrefBefore intoarce false) si trece mai departe ca o comanda obisnuita.
+  if (pending?.step === 'prefBefore') {
+    const person = await getPerson(chatId);
+    if (await handlePrefBefore(botToken, chatId, rawText, person ? REGISTERED_KEYBOARD : REGISTER_KEYBOARD)) return;
+    pending = null;
+  }
   if (pending) {
     const result = advanceRegistration(pending, rawText);
     if (result.cancelled) {
@@ -386,8 +527,101 @@ async function handleGuestMessage(cfg, message, rawText, text) {
   }
 }
 
+/** Tastatura persistenta potrivita unui chat de invitat (inregistrat sau nu). */
+async function guestKeyboardFor(chatId) {
+  try {
+    return (await getPerson(chatId)) ? REGISTERED_KEYBOARD : REGISTER_KEYBOARD;
+  } catch {
+    return REGISTER_KEYBOARD;
+  }
+}
+
+/**
+ * Butoanele din /setari (`pref:<cale>`). Spre deosebire de approve:/deny: (doar proprietarul),
+ * sunt permise oricarui chat cu acces -- si e sigur pentru ca payload-ul NU poarta niciodata un
+ * chat_id tinta: actiunea se aplica mereu lui `cq.from.id`, identitatea confirmata de Telegram,
+ * deci nimeni nu poate modifica setarile altcuiva apasand un buton.
+ */
+async function handlePrefCallback(cfg, cq, path) {
+  const { botToken, chatId: ownerId } = cfg.telegram;
+  const fromId = cq.from?.id;
+  if (fromId == null) {
+    await answerCallbackQuery(botToken, cq.id, '');
+    return;
+  }
+  const isOwner = String(fromId) === String(ownerId);
+  if (!isOwner && (await getAccess(fromId))?.status !== 'approved') {
+    await answerCallbackQuery(botToken, cq.id, 'Nu ai acces.');
+    return;
+  }
+
+  if (path === 'before') {
+    await setPendingRegistration(fromId, { step: 'prefBefore' });
+    await answerCallbackQuery(botToken, cq.id, '');
+    await replyTo(botToken, fromId, PREF_BEFORE_PROMPT, isOwner ? ACUM_KEYBOARD : await guestKeyboardFor(fromId));
+    return;
+  }
+
+  const prefs = togglePref(normalizePrefs(await getPrefs(fromId)), path);
+  await setPrefs(fromId, prefs);
+  await answerCallbackQuery(botToken, cq.id, '');
+  if (cq.message?.chat?.id != null && cq.message?.message_id != null) {
+    try {
+      await editMessageText(botToken, cq.message.chat.id, cq.message.message_id, buildSettingsSummary(), buildSettingsKeyboard(prefs));
+    } catch (err) {
+      // "message is not modified" (path necunoscut / dublu-tap) -- inofensiv.
+      console.error('Eroare la editarea setarilor:', err.message);
+    }
+  }
+}
+
+/**
+ * Confirmarea /sterge (`del:yes` / `del:no`). Permisa oricui, fara aprobare -- dreptul de a-si
+ * sterge datele nu trebuie sa astepte pe nimeni; si doar pe `cq.from.id`, ca la setari.
+ */
+async function handleDeleteCallback(cfg, cq, choice) {
+  const { botToken } = cfg.telegram;
+  const fromId = cq.from?.id;
+  if (fromId == null) {
+    await answerCallbackQuery(botToken, cq.id, '');
+    return;
+  }
+
+  const editResult = async (text) => {
+    if (cq.message?.chat?.id == null || cq.message?.message_id == null) return;
+    try {
+      await editMessageText(botToken, cq.message.chat.id, cq.message.message_id, text);
+    } catch (err) {
+      console.error('Eroare la editarea confirmarii /sterge:', err.message);
+    }
+  };
+
+  if (choice !== 'yes') {
+    await answerCallbackQuery(botToken, cq.id, 'Anulat.');
+    await editResult(DELETE_CANCELLED_MESSAGE);
+    return;
+  }
+
+  await deletePerson(fromId);
+  await clearPendingRegistration(fromId);
+  await deleteGuestNotifyData(fromId);
+  await answerCallbackQuery(botToken, cq.id, 'Șters.');
+  await editResult(DELETE_DONE_MESSAGE);
+  await replyTo(botToken, fromId, escapeMarkdownV2('Poți reîncepe oricând cu /inregistrare.'), REGISTER_KEYBOARD);
+}
+
 async function handleCallbackQuery(cfg, cq) {
   const { botToken, chatId: ownerId } = cfg.telegram;
+
+  const data = String(cq.data || '');
+  if (data.startsWith('pref:')) {
+    await handlePrefCallback(cfg, cq, data.slice('pref:'.length));
+    return;
+  }
+  if (data.startsWith('del:')) {
+    await handleDeleteCallback(cfg, cq, data.slice('del:'.length));
+    return;
+  }
 
   if (String(cq.from?.id) !== String(ownerId)) {
     // Cineva a apasat un buton dar nu e proprietarul -- nu avem incredere orbeste in
