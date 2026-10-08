@@ -46,6 +46,33 @@ because they have fundamentally different latency requirements.
   (`buildRateLimitMessage`), and make **zero** ASP requests until that time. A limited run
   exits 0 and leaves `consecutiveFailures` untouched — a 429 says nothing about the site's
   structure, unlike the "all categories failed" case the streak/alert exists for.
+- **Guest notifications (`src/check.js`, `src/guests.js`, `api/notify-guests.js`)** —
+  approved + registered guests get the same automatic messages as the owner (alert on an
+  earlier/new date + 07:30 summary), on *their own* IDNP and ASP quota. `src/check.js`
+  `checkPerson` is the shared per-person core (fetch all categories, stop at the first
+  `RateLimitError`, `computeDiff`, alert + heartbeat); it sends/writes nothing, the caller
+  does. `src/index.js` uses it for the owner (file state); `src/guests.js` `runGuests`
+  iterates `listApprovedAccess()` and for each guest skips if notifications are off
+  (`notify:<chatId>` = `off`), no `person` yet, or `getAspBlock(idnp)` is active; otherwise
+  runs `checkPerson` against `checker:guest:<chatId>` (plain Redis, no personal data, same
+  shape as `state/slots.json`), sends with `REGISTERED_KEYBOARD`, then saves state **after**
+  sending (a transient Telegram failure keeps the old state, so the alert retries instead
+  of being lost). Per-guest try/catch: one guest who blocked the bot (Telegram 403) never
+  stops the others. **It runs on Vercel, not in CI, on purpose:** guest data is encrypted
+  with `USER_DATA_KEY`, and `REDIS_URL`/`USER_DATA_KEY` are write-only in Vercel (can't be
+  read back to copy into GitHub) — so `check.yml`, after the owner's run (`if: always()`,
+  `continue-on-error`), does `POST /api/notify-guests` with `Authorization: Bearer
+  NOTIFY_SECRET` (a fresh secret set in both Vercel and GitHub; constant-time compare via
+  `src/secret.js`). The key never leaves Vercel and `index.js` stays zero-dependency. A
+  Redis lock (`checker:guests:lock`, 150s TTL) stops two overlapping runs from double-sending.
+  **The opt-out must stay visible:** every automatic guest message ends with "Nu mai vrei
+  notificări automate? Apasă /notificari" (`OPT_OUT_FOOTER`; the very first message uses
+  `FIRST_RUN_FOOTER`, which explains what they'll receive), the registration-complete
+  message says it, and `/notificari` (toggle, handled before the pending-registration check
+  like `/help`) replies with how to flip it back. `/sterge` and `/revoca` also delete the
+  guest's `checker:guest` and `notify` keys. `computeDiff` keeps the slots of categories it
+  did *not* read this run (isolated failure or a mid-run 429); before, they were dropped and
+  every date re-alerted as "new" on the next successful read — multiplied by guests.
 - **`api/telegram-webhook.js`** — on-demand command responder, deployed as a Vercel
   serverless function and registered with Telegram via `setWebhook`. When the configured
   chat sends a recognized command (`/acum`, `/live`, `/status`, `/check`, `/help`, plus

@@ -54,6 +54,15 @@ abandonată). `/sterge` șterge oricând datele salvate ale oricui le cere. Prop
 vedea cine are acces (`/utilizatori`) sau revoca accesul cuiva (`/revoca <chat_id>`). Botul
 iese singur din orice grup: e gândit doar pentru chat privat.
 
+**Notificări automate pentru invitați.** Un invitat aprobat și înregistrat primește, pe
+datele lui, aceleași mesaje ca proprietarul: alertă când apare o zi mai devreme sau nouă +
+rezumat zilnic la 07:30. Sunt pornite implicit și se opresc oricând cu `/notificari`
+(buton în tastatură; apăsat din nou le repornește, `/acum` merge oricum). Fiecare mesaj
+automat se termină cu "Nu mai vrei notificări automate? Apasă /notificari", iar primul
+explică ce va primi. Fiecare invitat consumă cota ASP a propriului IDNP, nu pe a
+proprietarului, iar la limita zilnică primește un singur mesaj de pauză. Rulează în
+`api/notify-guests.js`, apelat din CI după verificarea proprietarului (vezi mai jos).
+
 ## Configurare locală
 
 ```bash
@@ -73,6 +82,11 @@ Repo-ul trebuie să fie privat. Adaugă în Settings > Secrets and variables > A
 | `ASP_DOC_ISSUE_DATE` | data emiterii buletinului, format `YYYY-MM-DDTHH:mm:ss` |
 | `TELEGRAM_BOT_TOKEN` | token de la [@BotFather](https://t.me/BotFather) |
 | `TELEGRAM_CHAT_ID` | id-ul chatului unde ajung notificările |
+| `NOTIFY_SECRET` | același șir ca `NOTIFY_SECRET` din Vercel; autentifică apelul către `/api/notify-guests` |
+
+După verificarea proprietarului, workflow-ul face `POST /api/notify-guests` (pasul "Notifică
+invitații", `continue-on-error`). Notificările invitaților rulează pe Vercel, nu în CI,
+pentru că datele lor sunt criptate cu `USER_DATA_KEY`, care rămâne doar în Vercel.
 
 Workflow-ul rulează la `30 * * * *` (GitHub `schedule` e best-effort, pot apărea întârzieri
 de ore) și poate fi declanșat manual din tab-ul Actions (`workflow_dispatch`).
@@ -86,6 +100,7 @@ Proiect Vercel separat (`asp-programare-webhook`), cu aceleași 5 variabile de m
 | `TELEGRAM_WEBHOOK_SECRET` | șir random, Telegram îl trimite înapoi la fiecare cerere ca dovadă de identitate |
 | `REDIS_URL` | necesar doar dacă vrei ca alte persoane (nu proprietarul) să poată folosi botul |
 | `USER_DATA_KEY` | obligatoriu împreună cu `REDIS_URL`, cheia de criptare a datelor altor persoane |
+| `NOTIFY_SECRET` | șir random (Bearer) pentru `/api/notify-guests`; aceeași valoare ca secretul GitHub cu același nume |
 
 `REDIS_URL` e un connection string standard (`redis://default:PAROLA@host:port`); orice
 provider merge (Redis Cloud, Upstash TCP, self-hosted). Preferă `rediss://` (TLS) dacă
@@ -107,8 +122,9 @@ Pași de configurare (o singură dată):
 4. `npm run set-commands` (o singură dată, sau la fiecare schimbare a listei de comenzi).
 5. La [@BotFather](https://t.me/BotFather), `/setjoingroups` > Disable.
 
-Orice modificare la codul webhook-ului necesită redeploy manual pe Vercel (nu e legat de
-push-uri pe GitHub în configurația curentă).
+Proiectul Vercel e conectat la repo și se redeployează la fiecare push pe `master`. Dacă un
+deploy din git e blocat (autorul commit-ului trebuie să fie un email verificat pe contul
+GitHub care deține repo-ul, altfel planul Hobby îl refuză), fallback: `vercel --prod --yes`.
 
 ## Structură
 
@@ -122,9 +138,13 @@ src/
 ├─ format.js        mesaje Telegram + utilitare de dată (fus Europe/Chisinau)
 ├─ telegram.js      client Telegram Bot API + tastaturi persistente + setMyCommands
 ├─ registration.js  flux conversațional (IDNP/serie/dată) + mesajul /help
-└─ userStore.js     persistență per chat_id (Redis) pentru datele altor persoane
+├─ userStore.js     persistență per chat_id (Redis) pentru datele altor persoane
+├─ check.js         verificarea unei persoane (fetch + diff + alertă + rezumat), comună proprietar/invitați
+├─ guests.js        bucla de notificări pentru invitații aprobați
+└─ secret.js        comparare de secrete în timp constant
 api/
-└─ telegram-webhook.js   funcție serverless (Vercel), răspunde la /acum etc.
+├─ telegram-webhook.js   funcție serverless (Vercel), răspunde la /acum etc.
+└─ notify-guests.js      funcție serverless (Vercel), notificările invitaților; apelată din CI
 scripts/
 └─ set-commands.mjs      înregistrează comenzile în meniul nativ Telegram (o singură dată)
 state/slots.json   stare persistată de verificarea periodică, comisă înapoi în repo de CI

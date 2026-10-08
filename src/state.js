@@ -4,7 +4,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-const EMPTY_STATE = () => ({
+export const EMPTY_STATE = () => ({
   lastRun: null,
   lastHeartbeatDate: null,
   consecutiveFailures: 0,
@@ -57,7 +57,14 @@ function slotKey(categoryKey, date) {
  * sa fie "mai devreme") si ar dubla tot continutul heartbeat-ului din aceeasi zi.
  */
 export function computeDiff(state, categoryResults) {
+  // Categoriile care NU au fost citite in aceasta rulare (esec izolat, sau oprite de un 429
+  // la mijloc) isi pastreaza slot-urile -- altfel la urmatoarea citire reusita fiecare zi ar
+  // aparea ca "noua" si ar declansa o alerta falsa pentru toate.
+  const fetchedKeys = new Set(categoryResults.map(({ category }) => category.key));
   const newSlots = {};
+  for (const [key, value] of Object.entries(state.slots)) {
+    if (!fetchedKeys.has(key.split('|')[0])) newSlots[key] = value;
+  }
   const newEarliest = { ...state.earliest };
   const newInitialized = { ...state.initialized };
   const earlierDays = [];

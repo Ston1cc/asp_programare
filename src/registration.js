@@ -16,6 +16,19 @@ export const HELP_COMMAND = '/help';
 export const LIST_USERS_COMMAND = '/utilizatori';
 export const REVOKE_COMMAND = '/revoca';
 export const LIST_REQUESTS_COMMAND = '/cereri';
+export const NOTIFY_COMMAND = '/notificari';
+
+// Raspunsurile la /notificari spun mereu si ce se intampla ACUM si cum se schimba -- cerinta
+// explicita: faptul ca notificarile pot fi oprite trebuie sa fie evident, nu ascuns.
+export const NOTIFY_ON_MESSAGE = `🔔 ${escapeMarkdownV2(
+  'Notificări pornite: primești automat alerte când apar date mai devreme + un rezumat zilnic la 07:30. Apasă din nou /notificari ca să le oprești.',
+)}`;
+export const NOTIFY_OFF_MESSAGE = `🔕 ${escapeMarkdownV2(
+  'Notificări oprite. /acum merge în continuare. Apasă din nou /notificari ca să le pornești.',
+)}`;
+export const NOTIFY_NEEDS_REGISTRATION_MESSAGE = escapeMarkdownV2(
+  'Notificările se trimit pe datele tale — mai întâi apasă /inregistrare.',
+);
 
 // Cifra de control IDNP: ponderi 7,3,1 repetate pe primele 12 cifre, suma mod 10 trebuie
 // sa egaleze cifra 13. Filtreaza typo-uri (cifre transpuse etc.) inainte sa ajunga la ASP.
@@ -133,7 +146,9 @@ export function advanceRegistration(pending, text) {
       return { reply: `❌ ${err}\n\n${promptData()}`, pending };
     }
     return {
-      reply: `✅ ${escapeMarkdownV2('Gata! Poți verifica acum cu /acum.')}`,
+      reply: `✅ ${escapeMarkdownV2(
+        'Gata! Poți verifica acum cu /acum. De acum primești și notificări automate (alerte când apar date mai devreme + rezumat zilnic la 07:30). Le poți opri oricând cu /notificari.',
+      )}`,
       person: { idnp: pending.idnp, seriaAndNumber: pending.seria, issueDate },
     };
   }
@@ -201,6 +216,7 @@ export function buildHelpMessage({ isOwner, hasPerson, needsApproval }) {
     lines.push(cmdLine('/revoca <chat_id>', 'revocă accesul unei persoane'));
   } else if (hasPerson) {
     lines.push(cmdLine('/acum', 'verifică live cele mai apropiate date, cu datele tale salvate'));
+    lines.push(cmdLine('/notificari', 'pornește/oprește notificările automate (alerte + rezumat 07:30)'));
     lines.push(cmdLine('/sterge', 'șterge datele tale salvate (IDNP/serie/dată)'));
   } else if (needsApproval) {
     // Nu aratam /inregistrare aici -- inainte de aprobare, comanda doar retrimite/
