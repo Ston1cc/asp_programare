@@ -37,6 +37,8 @@ jobs:
           ASP_DOC_ISSUE_DATE: ${{ secrets.ASP_DOC_ISSUE_DATE }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Pentru setarile /setari ale proprietarului (api/owner-prefs.js); fara el -> implicite.
+          NOTIFY_SECRET: ${{ secrets.NOTIFY_SECRET }}
         run: node src/index.js
 
       # Notificarile invitatilor ruleaza pe Vercel (api/notify-guests.js), nu aici: datele lor
@@ -49,8 +51,13 @@ jobs:
         env:
           NOTIFY_SECRET: ${{ secrets.NOTIFY_SECRET }}
         run: |
+          # Trimite si state-ul proprietarului (pentru /status). Daca verificarea a picat
+          # inainte sa-l scrie, trimite {} -- invitatii isi primesc notificarile oricum.
+          [ -f state/slots.json ] && BODY=state/slots.json || { echo '{}' > "$RUNNER_TEMP/empty.json"; BODY="$RUNNER_TEMP/empty.json"; }
           curl -sS --fail-with-body --max-time 150 -X POST \
             -H "Authorization: Bearer $NOTIFY_SECRET" \
+            -H "Content-Type: application/json" \
+            --data-binary "@$BODY" \
             https://asp-programare-webhook.vercel.app/api/notify-guests
 
       # `always()` -- daca pasul de verificare iese cu cod 1 (toate categoriile au picat),

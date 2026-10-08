@@ -17,13 +17,17 @@ import { splitMessage } from './format.js';
 //   REGISTERED_KEYBOARD -- alta persoana care si-a salvat deja datele
 //   REGISTER_KEYBOARD   -- alta persoana necunoscuta botului
 export const ACUM_KEYBOARD = {
-  keyboard: [[{ text: '/acum' }, { text: '/cereri' }, { text: '/help' }]],
+  keyboard: [[{ text: '/acum' }, { text: '/status' }], [{ text: '/setari' }, { text: '/cereri' }, { text: '/help' }]],
   resize_keyboard: true,
   is_persistent: true,
 };
 
 export const REGISTERED_KEYBOARD = {
-  keyboard: [[{ text: '/acum' }, { text: '/sterge' }], [{ text: '/notificari' }, { text: '/help' }]],
+  keyboard: [
+    [{ text: '/acum' }, { text: '/setari' }],
+    [{ text: '/notificari' }, { text: '/sterge' }],
+    [{ text: '/help' }],
+  ],
   resize_keyboard: true,
   is_persistent: true,
 };
@@ -73,9 +77,19 @@ export async function answerCallbackQuery(botToken, callbackQueryId, text) {
   await callTelegram(botToken, 'answerCallbackQuery', { callback_query_id: callbackQueryId, text });
 }
 
-/** Editeaza un mesaj deja trimis -- folosit ca sa marcheze decizia (Aprobat/Respins) pe mesajul de cerere. */
-export async function editMessageText(botToken, chatId, messageId, text) {
-  await callTelegram(botToken, 'editMessageText', { chat_id: chatId, message_id: messageId, text, parse_mode: 'MarkdownV2' });
+/**
+ * Editeaza un mesaj deja trimis. Fara `replyMarkup`, Telegram scoate tastatura inline a
+ * mesajului (dorit la Aprobat/Respins si la confirmarea /sterge); cu el, o inlocuieste -- asa
+ * se actualizeaza in loc butoanele din /setari dupa fiecare apasare.
+ */
+export async function editMessageText(botToken, chatId, messageId, text, replyMarkup) {
+  await callTelegram(botToken, 'editMessageText', {
+    chat_id: chatId,
+    message_id: messageId,
+    text,
+    parse_mode: 'MarkdownV2',
+    ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+  });
 }
 
 /** Sterge un mesaj -- folosit ca sa scoatem din chat mesajele in care userul a scris IDNP/serie/data. */

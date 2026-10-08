@@ -293,10 +293,52 @@ export async function setNotifyEnabled(chatId, enabled) {
   else await client.set(`notify:${chatId}`, 'off');
 }
 
-/** Sterge tot ce tine de notificarile unui chat (la /sterge si /revoca). */
+/** Sterge tot ce tine de notificarile si setarile unui chat (la /sterge si /revoca). */
 export async function deleteGuestNotifyData(chatId) {
   const client = await getClient();
-  await client.del([`checker:guest:${chatId}`, `notify:${chatId}`]);
+  await client.del([`checker:guest:${chatId}`, `notify:${chatId}`, `prefs:${chatId}`]);
+}
+
+// --- Setari (/setari) -------------------------------------------------------------------
+// `prefs:<chatId>` = { teoretic, practic, obisnuit, urgent, locations, before } -- doar
+// boolean-uri + o data, fara date personale: necriptat si fara TTL (o inregistrare ramasa
+// pentru un chat abandonat e inofensiva; /sterge si /revoca o curata oricum). Normalizarea
+// (valori lipsa/corupte -> implicite) se face in src/prefs.js, nu aici.
+
+export async function getPrefs(chatId) {
+  const client = await getClient();
+  const raw = await client.get(`prefs:${chatId}`);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export async function setPrefs(chatId, prefs) {
+  const client = await getClient();
+  await client.set(`prefs:${chatId}`, JSON.stringify(prefs));
+}
+
+// --- Status pentru /status (admin) ------------------------------------------------------
+// `status:owner` = starea checker-ului proprietarului (trimisa de CI la api/notify-guests.js),
+// `status:guests` = rezultatul ultimei rulari a buclei de invitati. Fara date personale.
+
+export async function getStatus(name) {
+  const client = await getClient();
+  const raw = await client.get(`status:${name}`);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export async function setStatus(name, value) {
+  const client = await getClient();
+  await client.set(`status:${name}`, JSON.stringify(value));
 }
 
 /**

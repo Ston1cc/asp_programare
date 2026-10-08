@@ -9,6 +9,7 @@
 
 import { checkPerson } from './check.js';
 import { EMPTY_STATE } from './state.js';
+import { normalizePrefs } from './prefs.js';
 import { buildRateLimitMessage, escapeMarkdownV2 } from './format.js';
 import { sendTelegramMessage, REGISTERED_KEYBOARD } from './telegram.js';
 
@@ -33,7 +34,8 @@ async function runGuest({ store, telegram, guest, now, cache }) {
   if (await store.getAspBlock(person.idnp)) return 'skipped'; // cota ASP a lui e epuizata
 
   const state = { ...EMPTY_STATE(), ...((await store.getGuestState(chatId)) ?? {}) };
-  const result = await checkPerson({ person, state, now, cache });
+  const prefs = normalizePrefs(await store.getPrefs(chatId));
+  const result = await checkPerson({ person, state, now, cache, prefs });
 
   const messages = [];
   if (result.rateLimit) {

@@ -5,14 +5,39 @@
 // cheia de criptare a datelor lor sa nu trebuiasca copiata in GitHub.
 
 import { fileURLToPath } from 'node:url';
-import { CATEGORIES, loadConfig } from './config.js';
+import { CATEGORIES, VERCEL_BASE_URL, loadConfig } from './config.js';
 import { loadState, saveState } from './state.js';
 import { buildFailureMessage, buildRateLimitMessage } from './format.js';
 import { sendTelegramMessage } from './telegram.js';
 import { checkPerson } from './check.js';
+import { DEFAULT_PREFS, normalizePrefs } from './prefs.js';
 
 const STATE_PATH = fileURLToPath(new URL('../state/slots.json', import.meta.url));
 const FAILURE_THRESHOLD = 3;
+
+/**
+ * Setarile (/setari) ale proprietarului stau in Redis, accesibil doar de pe Vercel -- le cerem
+ * de la api/owner-prefs.js cu NOTIFY_SECRET. Orice esec (fara secret = rulare locala, retea,
+ * 401) cade pe DEFAULT_PREFS: vezi tot, exact ca inainte de /setari -- mai bine o alerta in
+ * plus decat una pierduta din cauza unei dependente de retea.
+ */
+async function loadOwnerPrefs() {
+  const secret = process.env.NOTIFY_SECRET;
+  if (!secret) return DEFAULT_PREFS;
+  try {
+    const res = await fetch(`${VERCEL_BASE_URL}/api/owner-prefs`, {
+      headers: { authorization: `Bearer ${secret}` },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const { prefs } = await res.json();
+    console.log('prefs proprietar: incarcate.');
+    return normalizePrefs(prefs);
+  } catch (err) {
+    console.error(`prefs proprietar: nu am putut sa le incarc (${err.message}) -- folosesc implicitele.`);
+    return DEFAULT_PREFS;
+  }
+}
 
 /** Verificarea proprietarului. Intoarce true daca TOATE categoriile au picat (esec real). */
 async function runOwner(config, now, cache) {
@@ -33,7 +58,8 @@ async function runOwner(config, now, cache) {
   const todayUtc = now.toISOString().slice(0, 10);
   if (state.aspDaily?.date !== todayUtc) state.aspDaily = { date: todayUtc, count: 0 };
 
-  const result = await checkPerson({ person: config.person, state, now, cache });
+  const prefs = await loadOwnerPrefs();
+  const result = await checkPerson({ person: config.person, state, now, cache, prefs });
   const { messages: dataMessages, categoryResults, errors, rateLimit, attempted } = result;
   const nextState = result.nextState;
   nextState.aspDaily = { date: todayUtc, count: state.aspDaily.count + attempted };

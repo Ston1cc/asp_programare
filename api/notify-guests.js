@@ -6,7 +6,23 @@
 import { loadConfig } from '../src/config.js';
 import { runGuests } from '../src/guests.js';
 import { isValidSecret } from '../src/secret.js';
-import { tryAcquireGuestRunLock, releaseGuestRunLock } from '../src/userStore.js';
+import { tryAcquireGuestRunLock, releaseGuestRunLock, setStatus } from '../src/userStore.js';
+
+// CI trimite aici state/slots.json al proprietarului; pastram doar campurile de care are
+// nevoie /status (nimic din zilele libere sau din date personale).
+function pickOwnerStatus(body) {
+  if (!body || typeof body !== 'object') return null;
+  return {
+    lastRun: typeof body.lastRun === 'string' ? body.lastRun : null,
+    lastHeartbeatDate: typeof body.lastHeartbeatDate === 'string' ? body.lastHeartbeatDate : null,
+    rateLimitedUntil: typeof body.rateLimitedUntil === 'string' ? body.rateLimitedUntil : null,
+    consecutiveFailures: Number.isFinite(body.consecutiveFailures) ? body.consecutiveFailures : 0,
+    aspDaily:
+      body.aspDaily && typeof body.aspDaily === 'object'
+        ? { date: String(body.aspDaily.date ?? ''), count: Number(body.aspDaily.count) || 0 }
+        : null,
+  };
+}
 
 // Verificarea e secventiala per invitat (8 cereri ASP fiecare) -- 120s acopera confortabil
 // cativa invitati; peste asta ar trebui paralelizat.
@@ -33,7 +49,24 @@ export default async function handler(req, res) {
       return;
     }
     const cfg = loadConfig();
-    const summary = await runGuests({ telegram: cfg.telegram, now: new Date(), cache: new Map() });
+    const now = new Date();
+
+    // Pentru /status. Best-effort: o eroare aici nu trebuie sa opreasca notificarile.
+    const ownerStatus = pickOwnerStatus(req.body);
+    if (ownerStatus?.lastRun) {
+      try {
+        await setStatus('owner', ownerStatus);
+      } catch (err) {
+        console.error('Nu am putut salva status:owner:', err.message);
+      }
+    }
+
+    const summary = await runGuests({ telegram: cfg.telegram, now, cache: new Map() });
+    try {
+      await setStatus('guests', { at: now.toISOString(), ...summary });
+    } catch (err) {
+      console.error('Nu am putut salva status:guests:', err.message);
+    }
     res.status(200).json({ ok: true, ...summary });
   } catch (err) {
     console.error('Eroare in notify-guests:', err);

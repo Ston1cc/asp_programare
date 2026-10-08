@@ -35,9 +35,22 @@ fiecărei rulări.
 
 ### 2. Comanda la cerere (`/acum`, webhook pe Vercel)
 
-Scrii `/acum` (sau `/live`, `/status`, `/check`) botului și primești răspuns instant (1-2
+Scrii `/acum` (sau `/live`, `/check`) botului și primești răspuns instant (1-2
 secunde), citit live, nu din cache. `/help` listează toate comenzile disponibile; același
 meniu apare și în Telegram (butonul "Menu" de lângă câmpul de text).
+
+**`/setari`** (proprietar și invitați): butoane pentru ce urmărești. Teoretic / practic,
+obișnuit / urgent, fiecare filială de la practic, plus „📅 Până la” (o dată-țintă: nu te
+anunță decât pentru date până atunci). Se aplică și la `/acum` (se citesc doar categoriile
+alese, deci mai puține cereri din cota ASP), și la alertele și rezumatul automat. Diff-ul
+rulează mereu pe toate categoriile; setările filtrează doar ce vezi, deci reactivarea unei
+categorii nu produce alerte false. Setările proprietarului ajung la checker-ul din CI prin
+`api/owner-prefs.js`; dacă nu pot fi citite, alertele arată tot, ca înainte.
+
+**`/status`** (doar proprietar): ultima rulare a checker-ului și cât de veche e (cu avertisment
+peste 3 ore), cereri ASP azi, limita ASP, dacă `/acum` e blocat, câți invitați sunt
+aprobați / înregistrați / cu notificările oprite / în așteptare, rezultatul ultimei rulări de
+notificări și setările tale active.
 
 Arhitectural, e un webhook Telegram, nu polling: `api/telegram-webhook.js`, funcție
 serverless pe Vercel, înregistrată direct la Telegram prin `setWebhook`. Telegram trimite
@@ -50,7 +63,9 @@ nume/@username/chat_id și butoane Aprobă/Respinge. După aprobare, `/inregistr
 cu pas IDNP, seria buletinului și data eliberării; mesajele cu aceste date sunt șterse din
 chat imediat după citire. Datele sunt salvate per `chat_id` în Redis, criptate
 (AES-256-GCM), cu TTL (90 zile pentru date confirmate, 10 minute pentru o înregistrare
-abandonată). `/sterge` șterge oricând datele salvate ale oricui le cere. Proprietarul poate
+abandonată). `/sterge` șterge oricând datele salvate ale oricui le cere, după o confirmare
+cu butoane „Da, șterge” / „Anulează” (un tap greșit pe butonul din tastatură nu mai
+distruge datele). Proprietarul poate
 vedea cine are acces (`/utilizatori`) sau revoca accesul cuiva (`/revoca <chat_id>`). Botul
 iese singur din orice grup: e gândit doar pentru chat privat.
 
@@ -141,10 +156,13 @@ src/
 ├─ userStore.js     persistență per chat_id (Redis) pentru datele altor persoane
 ├─ check.js         verificarea unei persoane (fetch + diff + alertă + rezumat), comună proprietar/invitați
 ├─ guests.js        bucla de notificări pentru invitații aprobați
+├─ prefs.js         setările /setari (filtre categorii/filiale/dată-țintă) + tastatura inline
+├─ status.js        mesajul /status (pur)
 └─ secret.js        comparare de secrete în timp constant
 api/
 ├─ telegram-webhook.js   funcție serverless (Vercel), răspunde la /acum etc.
-└─ notify-guests.js      funcție serverless (Vercel), notificările invitaților; apelată din CI
+├─ notify-guests.js      funcție serverless (Vercel), notificările invitaților; apelată din CI
+└─ owner-prefs.js        funcție serverless (Vercel), setările proprietarului pentru CI
 scripts/
 └─ set-commands.mjs      înregistrează comenzile în meniul nativ Telegram (o singură dată)
 state/slots.json   stare persistată de verificarea periodică, comisă înapoi în repo de CI

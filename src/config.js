@@ -4,6 +4,10 @@
 
 export const API_BASE = 'https://eservicii.gov.md/asp/dimtcca/api';
 
+// Functiile Vercel pe care CI-ul le apeleaza cu `NOTIFY_SECRET` (api/owner-prefs.js,
+// api/notify-guests.js) -- singurul loc unde setarile si invitatii (Redis) sunt accesibili.
+export const VERCEL_BASE_URL = 'https://asp-programare-webhook.vercel.app';
+
 // Toate locatiile monitorizate sunt in Chisinau -- folosit ca titlu generic in mesaje,
 // filiala exacta apare in eticheta fiecarei categorii (vezi CATEGORIES mai jos).
 export const CITY_NAME = 'Chișinău';
