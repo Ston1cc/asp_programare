@@ -18,7 +18,7 @@ Monitorul doar citește. Nu plătește, nu rezervă, nu depune nicio cerere.
 
 Proiectul are două componente:
 
-### 1. Verificarea periodică (GitHub Actions, din oră în oră)
+### 1. Verificarea periodică (GitHub Actions, la 15 minute)
 
 `src/index.js`, rulat de `.github/workflows/check.yml`. Ține minte cea mai devreme zi
 liberă per categorie și trimite:
@@ -48,7 +48,7 @@ categorii nu produce alerte false. Setările proprietarului ajung la checker-ul 
 `api/owner-prefs.js`; dacă nu pot fi citite, alertele arată tot, ca înainte.
 
 **`/status`** (doar proprietar): ultima rulare a checker-ului și cât de veche e (cu avertisment
-peste 3 ore), cereri ASP azi, limita ASP, dacă `/acum` e blocat, câți invitați sunt
+peste 45 de minute), cereri ASP azi, limita ASP, dacă `/acum` e blocat, câți invitați sunt
 aprobați / înregistrați / cu notificările oprite / în așteptare, rezultatul ultimei rulări de
 notificări și setările tale active.
 
@@ -103,8 +103,17 @@ După verificarea proprietarului, workflow-ul face `POST /api/notify-guests` (pa
 invitații", `continue-on-error`). Notificările invitaților rulează pe Vercel, nu în CI,
 pentru că datele lor sunt criptate cu `USER_DATA_KEY`, care rămâne doar în Vercel.
 
-Workflow-ul rulează la `30 * * * *` (GitHub `schedule` e best-effort, pot apărea întârzieri
-de ore) și poate fi declanșat manual din tab-ul Actions (`workflow_dispatch`).
+Cadența de 15 minute vine din **cron-job.org**, care pornește workflow-ul prin
+`workflow_dispatch`: `POST https://api.github.com/repos/Ston1cc/asp_programare/actions/workflows/check.yml/dispatches`,
+headere `Authorization: Bearer <token>`, `Accept: application/vnd.github+json`,
+`X-GitHub-Api-Version: 2022-11-28`, `Content-Type: application/json`, body `{"ref":"master"}`
+(răspuns 204). Tokenul e fine-grained, doar pe acest repo, cu **Actions: Read and write**.
+Cron-ul din workflow (`30 * * * *`) e doar plasă de siguranță: GitHub `schedule` a rulat doar de
+4-5 ori pe zi, indiferent de frecvența cerută. Workflow-ul poate fi declanșat și manual din
+tab-ul Actions.
+
+La 15 minute sunt ~770 cereri ASP pe zi (8 per rulare). Dacă apare mesajul de pauză ASP,
+cadența se mărește la 20-30 minute.
 
 ## Configurare webhook (Vercel, comanda `/acum`)
 

@@ -7,6 +7,11 @@ on:
     # sarite. Decalat pe minutul 30 (in afara varfului) -- coincide si cu ora exacta
     # a heartbeat-ului de dimineata (7:30 Europe/Chisinau, fara offset de jumatate
     # de ora fata de UTC, deci minutul UTC = minutul local).
+    #
+    # Cadenta REALA (la 15 min) vine din cron-job.org, care porneste workflow-ul prin
+    # `workflow_dispatch` (API GitHub) -- `schedule` ruleaza doar ~4-5 ori pe zi chiar si la
+    # `*/15` (masurat 29.09-11.10.2026), deci nu poate fi baza. Cron-ul de aici ramane doar
+    # plasa de siguranta daca jobul cron-job.org e oprit.
     - cron: '30 * * * *'
   workflow_dispatch: {}
 

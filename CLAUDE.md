@@ -27,9 +27,15 @@ Two independent pieces, both plain HTTP clients against ASP's public JSON API, s
 same `config`/`asp`/`format`/`telegram` modules, deployed to two different platforms
 because they have fundamentally different latency requirements.
 
-- **`src/index.js`** — periodic checker, run hourly (`30 * * * *`) by
-  `.github/workflows/check.yml` on GitHub Actions (`schedule` is best-effort — gaps of
-  hours happen; accepted). Fetches all monitored targets, diffs against `state/slots.json`
+- **`src/index.js`** — periodic checker, run every 15 min by
+  `.github/workflows/check.yml` on GitHub Actions, **triggered by cron-job.org via
+  `workflow_dispatch`** (`POST /repos/Ston1cc/asp_programare/actions/workflows/check.yml/dispatches`,
+  fine-grained token, Actions: read/write only). GitHub's own `schedule` is not the cadence:
+  measured 29.09–11.10.2026 it fired only 4–5 times a day even at hourly, so `*/15` there
+  would be ignored too; the `30 * * * *` cron stays purely as a safety net if the
+  cron-job.org job is off. At 15 min that is ~770 ASP `dates` requests/day per IDNP (8/run);
+  the real daily quota is unknown (history topped out at 48/day with no 429) — if a pause
+  message appears, back the cadence off to 20–30 min. Fetches all monitored targets, diffs against `state/slots.json`
   (committed back to the repo each run, since the runner is ephemeral), and sends a
   Telegram alert only when something notification-worthy changed, plus one full summary
   per day (heartbeat, gated on local time ≥ 7:30 in Europe/Chisinau). The workflow's
@@ -71,7 +77,7 @@ because they have fundamentally different latency requirements.
   `/status` (owner only; `/status` is no longer an alias of `/acum`) is built by the pure
   `buildStatusMessage` from `status:owner` (the owner's `state/slots.json` fields, which CI
   POSTs as the body of its `/api/notify-guests` call, so a failed check still reports its
-  stale `lastRun` — warned about after 3h), `status:guests` (last guest-run summary) and
+  stale `lastRun` — warned about after 45 min, three missed 15-min runs), `status:guests` (last guest-run summary) and
   live Redis counts. `/sterge` now only asks (`DELETE_CONFIRM_KEYBOARD`); the deletion runs
   in `handleDeleteCallback` after "Da, șterge", because it's a persistent keyboard button
   and one stray tap used to erase a guest's data.
