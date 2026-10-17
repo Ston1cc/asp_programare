@@ -2,30 +2,37 @@ name: Verifica locuri ASP
 
 on:
   schedule:
-    # Minutul 0 e cel mai incarcat moment global pentru GH Actions (varful orei) --
-    # GitHub avertizeaza explicit ca schedule-urile de acolo pot fi intarziate sau
-    # sarite. Decalat pe minutul 30 (in afara varfului) -- coincide si cu ora exacta
-    # a heartbeat-ului de dimineata (7:30 Europe/Chisinau, fara offset de jumatate
-    # de ora fata de UTC, deci minutul UTC = minutul local).
-    #
-    # Cadenta REALA (la 15 min) vine din cron-job.org, care porneste workflow-ul prin
-    # `workflow_dispatch` (API GitHub) -- `schedule` ruleaza doar ~4-5 ori pe zi chiar si la
-    # `*/15` (masurat 29.09-11.10.2026), deci nu poate fi baza. Cron-ul de aici ramane doar
-    # plasa de siguranta daca jobul cron-job.org e oprit.
+    # Doar plasa de siguranta. GitHub executa `schedule` de 4-6 ori pe zi, indiferent cat de des
+    # il cerem (masurat 29.09-17.10.2026), deci NU poate fi cadenta. Cadenta de 15 min o da
+    # bucla din scripts/ci-loop.sh, iar jobul isi porneste singur succesorul (vezi ultimul pas).
+    # Daca lantul se rupe (job anulat de GitHub), un `schedule` il reporneste mai tarziu.
     - cron: '30 * * * *'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      loop_minutes:
+        description: 'Cat tine bucla, in minute (implicit 320 = 5h20)'
+        default: '320'
+      chain:
+        description: 'Porneste automat urmatorul job la final (false = doar test)'
+        default: 'true'
 
+# Un singur job ruleaza odata; urmatorul asteapta in coada si porneste imediat dupa. GitHub tine
+# cel mult UN job in asteptare (cel mai nou il inlocuieste pe cel vechi), deci un `schedule` care
+# cade in timpul unei bucle nu creeaza o a doua bucla paralela.
 concurrency:
   group: asp-check
   cancel-in-progress: false
 
 permissions:
   contents: write
+  # Pentru `gh workflow run` din ultimul pas (workflow_dispatch pornit cu GITHUB_TOKEN e permis).
+  actions: write
 
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Limita GitHub e 6h; bucla se opreste la 5h20, cu marja pentru ultimul commit + dispatch.
+    timeout-minutes: 350
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -35,46 +42,24 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Ruleaza verificarea
+      # Notificarile invitatilor ruleaza pe Vercel (api/notify-guests.js), nu aici: datele lor
+      # sunt criptate cu USER_DATA_KEY, care ramane doar in Vercel. Vezi scripts/ci-loop.sh.
+      - name: Bucla de verificare (la 15 min)
         env:
           ASP_IDNP: ${{ secrets.ASP_IDNP }}
           ASP_DOC_SERIES: ${{ secrets.ASP_DOC_SERIES }}
           ASP_DOC_ISSUE_DATE: ${{ secrets.ASP_DOC_ISSUE_DATE }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          # Pentru setarile /setari ale proprietarului (api/owner-prefs.js); fara el -> implicite.
+          # Setarile /setari ale proprietarului (api/owner-prefs.js) + apelul notify-guests.
           NOTIFY_SECRET: ${{ secrets.NOTIFY_SECRET }}
-        run: node src/index.js
+          LOOP_MINUTES: ${{ github.event.inputs.loop_minutes || '320' }}
+        run: bash scripts/ci-loop.sh
 
-      # Notificarile invitatilor ruleaza pe Vercel (api/notify-guests.js), nu aici: datele lor
-      # sunt criptate cu USER_DATA_KEY, care ramane doar in Vercel. Dupa verificarea
-      # proprietarului, indiferent de rezultatul ei (`always()`); un esec aici nu face run-ul
-      # rosu (`continue-on-error`) -- proprietarul si-a primit deja verificarea.
-      - name: Notifica invitatii
-        if: always()
-        continue-on-error: true
+      # Continua lantul si daca ultima verificare a iesit cu cod 1 (failure), dar NU la anulare
+      # manuala (`always()` ar relua jobul pe care tocmai l-ai oprit intentionat).
+      - name: Porneste urmatorul job
+        if: (success() || failure()) && github.event.inputs.chain != 'false'
         env:
-          NOTIFY_SECRET: ${{ secrets.NOTIFY_SECRET }}
-        run: |
-          # Trimite si state-ul proprietarului (pentru /status). Daca verificarea a picat
-          # inainte sa-l scrie, trimite {} -- invitatii isi primesc notificarile oricum.
-          [ -f state/slots.json ] && BODY=state/slots.json || { echo '{}' > "$RUNNER_TEMP/empty.json"; BODY="$RUNNER_TEMP/empty.json"; }
-          curl -sS --fail-with-body --max-time 150 -X POST \
-            -H "Authorization: Bearer $NOTIFY_SECRET" \
-            -H "Content-Type: application/json" \
-            --data-binary "@$BODY" \
-            https://asp-programare-webhook.vercel.app/api/notify-guests
-
-      # `always()` -- daca pasul de verificare iese cu cod 1 (toate categoriile au picat),
-      # state-ul (streak-ul de esecuri, rateLimitedUntil) trebuie totusi salvat; fara asta
-      # contorul de esecuri nu ajungea niciodata la prag si alerta de esec nu pleca.
-      - name: Commit state
-        if: always()
-        run: |
-          git config user.name "asp-programare-bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add state/slots.json
-          git diff --staged --quiet && exit 0
-          git commit -m "state: update [skip ci]"
-          git pull --rebase origin master
-          git push
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run check.yml --ref "${{ github.ref_name }}"
