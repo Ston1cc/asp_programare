@@ -63,9 +63,13 @@ export async function checkPerson({ person, state, now = new Date(), cache, cate
 
   let nextState = state;
   if (categoryResults.length > 0) {
-    const { earlierDays, newLaterDays, nextState: computedState } = computeDiff(state, categoryResults);
+    const { earlierDays, nextState: computedState } = computeDiff(state, categoryResults);
     nextState = computedState;
-    const alertMsg = buildAlertMessage(applyPrefsToEvents(prefs, { earlierDays, newLaterDays }));
+    // Doar zilele MAI DEVREME decat minimul precedent declanseaza o alerta. Zilele noi dar mai
+    // tarzii (`newLaterDays` din computeDiff) nu mai sunt trimise: nu ajuta pe nimeni sa se
+    // programeze mai repede si, la cadenta de 15 min, erau doar zgomot. computeDiff le
+    // calculeaza in continuare, ca sa isi tina `slots` la zi.
+    const alertMsg = buildAlertMessage(applyPrefsToEvents(prefs, { earlierDays, newLaterDays: [] }));
     if (alertMsg) messages.push(alertMsg);
   }
 

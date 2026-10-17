@@ -24,7 +24,8 @@ Proiectul are două componente:
 liberă per categorie și trimite:
 
 - alertă imediată când apare o zi mai devreme decât minimul cunoscut (semnalul principal)
-- alertă normală pentru zile noi, dar mai târzii
+- nimic pentru zile noi care apar după cea mai devreme dată cunoscută: contează doar când
+  poți programa mai devreme decât înainte
 - rezumat zilnic la 07:30 (Europe/Chisinau), cu situația completă
 
 **Limita zilnică ASP.** ASP acceptă un număr limitat de cereri pe zi per IDNP (estimat
