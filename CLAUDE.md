@@ -295,7 +295,10 @@ rejects the message outright with a 400.
 
 A new date is one of three things, each handled differently:
 1. It makes the category's earliest date *earlier* → priority alert (🔥), the main signal.
-2. It's new but later than the current earliest → normal alert, listed separately.
+2. It's new but later than the current earliest → **no alert any more** (changed
+   17.10.2026: only "earlier than before" matters, and at a 15-min cadence the extra
+   messages were noise). `computeDiff` still returns `newLaterDays` and still tracks them
+   in `slots`; `checkPerson` just passes `newLaterDays: []` to `buildAlertMessage`.
 3. A previously-seen date disappears → no alert, only reflected in the next heartbeat.
 
 This is intentional, not an oversight — this project is about surfacing "you can book
