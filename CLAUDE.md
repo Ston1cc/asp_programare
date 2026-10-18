@@ -27,15 +27,24 @@ Two independent pieces, both plain HTTP clients against ASP's public JSON API, s
 same `config`/`asp`/`format`/`telegram` modules, deployed to two different platforms
 because they have fundamentally different latency requirements.
 
-- **`src/index.js`** — periodic checker, run every 15 min by
-  `.github/workflows/check.yml` on GitHub Actions, **triggered by cron-job.org via
-  `workflow_dispatch`** (`POST /repos/Ston1cc/asp_programare/actions/workflows/check.yml/dispatches`,
-  fine-grained token, Actions: read/write only). GitHub's own `schedule` is not the cadence:
-  measured 29.09–11.10.2026 it fired only 4–5 times a day even at hourly, so `*/15` there
-  would be ignored too; the `30 * * * *` cron stays purely as a safety net if the
-  cron-job.org job is off. At 15 min that is ~770 ASP `dates` requests/day per IDNP (8/run);
-  the real daily quota is unknown (history topped out at 48/day with no 429) — if a pause
-  message appears, back the cadence off to 20–30 min. Fetches all monitored targets, diffs against `state/slots.json`
+- **`src/index.js`** — periodic checker, run every **65 min** by
+  `.github/workflows/check.yml` on GitHub Actions via a **self-chaining loop**
+  (`scripts/ci-loop.sh`): one job loops `node src/index.js` + `POST /api/notify-guests` every
+  `INTERVAL_SECONDS` (3900) for `LOOP_MINUTES` (320), then its last step runs `gh workflow run
+  check.yml` (`workflow_dispatch` from `GITHUB_TOKEN` is allowed; needs `actions: write`). GitHub's
+  own `schedule` is *not* the cadence: it fired only 4–6×/day even at hourly (measured
+  29.09–17.10.2026), so the `30 * * * *` cron is only the restart if the chain breaks. The
+  `asp-check` concurrency group queues the successor behind the running job (GitHub keeps one
+  pending run, so a stray `schedule` run never makes a second parallel loop); the "next job" step
+  uses `(success() || failure())`, not `always()`, so a manual cancel really stops the chain. A new
+  job reads `lastRun` from `state/slots.json` (committed by the previous job at its end) and waits
+  out the rest of the interval before its first iteration — without this, every handoff (~4×/day)
+  did a duplicate check, ~36 wasted ASP requests/day. Each iteration `git pull`s first, so a push
+  takes effect on the next check; state is committed at most hourly (not per iteration) and at
+  loop end. **Why 65 min:** the daily ASP quota is per IDNP and on 18.10.2026 it started
+  rejecting at the 182nd request (181 accepted) with checks every 15 min (768/day); at 65 min that
+  is 22 runs × 8 = 176/day, leaving a small margin for the owner's `/acum` (8 requests each, same
+  IDNP, *not* counted in `aspDaily`). Real quota is therefore somewhere ≥181, likely ~200. Fetches all monitored targets, diffs against `state/slots.json`
   (committed back to the repo each run, since the runner is ephemeral), and sends a
   Telegram alert only when something notification-worthy changed, plus one full summary
   per day (heartbeat, gated on local time ≥ 7:30 in Europe/Chisinau). The workflow's
@@ -77,7 +86,7 @@ because they have fundamentally different latency requirements.
   `/status` (owner only; `/status` is no longer an alias of `/acum`) is built by the pure
   `buildStatusMessage` from `status:owner` (the owner's `state/slots.json` fields, which CI
   POSTs as the body of its `/api/notify-guests` call, so a failed check still reports its
-  stale `lastRun` — warned about after 45 min, three missed 15-min runs), `status:guests` (last guest-run summary) and
+  stale `lastRun` — warned about after 140 min, two missed 65-min runs), `status:guests` (last guest-run summary) and
   live Redis counts. `/sterge` now only asks (`DELETE_CONFIRM_KEYBOARD`); the deletion runs
   in `handleDeleteCallback` after "Da, șterge", because it's a persistent keyboard button
   and one stray tap used to erase a guest's data.

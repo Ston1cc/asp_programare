@@ -18,7 +18,7 @@ Monitorul doar citește. Nu plătește, nu rezervă, nu depune nicio cerere.
 
 Proiectul are două componente:
 
-### 1. Verificarea periodică (GitHub Actions, la 15 minute)
+### 1. Verificarea periodică (GitHub Actions, la 65 de minute)
 
 `src/index.js`, rulat de `.github/workflows/check.yml`. Ține minte cea mai devreme zi
 liberă per categorie și trimite:
@@ -49,7 +49,7 @@ categorii nu produce alerte false. Setările proprietarului ajung la checker-ul 
 `api/owner-prefs.js`; dacă nu pot fi citite, alertele arată tot, ca înainte.
 
 **`/status`** (doar proprietar): ultima rulare a checker-ului și cât de veche e (cu avertisment
-peste 45 de minute), cereri ASP azi, limita ASP, dacă `/acum` e blocat, câți invitați sunt
+peste 2 ore), cereri ASP azi, limita ASP, dacă `/acum` e blocat, câți invitați sunt
 aprobați / înregistrați / cu notificările oprite / în așteptare, rezultatul ultimei rulări de
 notificări și setările tale active.
 
@@ -104,17 +104,20 @@ După verificarea proprietarului, workflow-ul face `POST /api/notify-guests` (pa
 invitații", `continue-on-error`). Notificările invitaților rulează pe Vercel, nu în CI,
 pentru că datele lor sunt criptate cu `USER_DATA_KEY`, care rămâne doar în Vercel.
 
-Cadența de 15 minute vine din **cron-job.org**, care pornește workflow-ul prin
-`workflow_dispatch`: `POST https://api.github.com/repos/Ston1cc/asp_programare/actions/workflows/check.yml/dispatches`,
-headere `Authorization: Bearer <token>`, `Accept: application/vnd.github+json`,
-`X-GitHub-Api-Version: 2022-11-28`, `Content-Type: application/json`, body `{"ref":"master"}`
-(răspuns 204). Tokenul e fine-grained, doar pe acest repo, cu **Actions: Read and write**.
-Cron-ul din workflow (`30 * * * *`) e doar plasă de siguranță: GitHub `schedule` a rulat doar de
-4-5 ori pe zi, indiferent de frecvența cerută. Workflow-ul poate fi declanșat și manual din
-tab-ul Actions.
+**Cadența (65 de minute) o dă workflow-ul însuși, fără cron extern.** GitHub `schedule` a rulat
+doar de 4-6 ori pe zi, indiferent de frecvența cerută (măsurat 29.09-17.10.2026), deci nu poate fi
+baza. În schimb, un job rulează în buclă (`scripts/ci-loop.sh`: verificare + notificări invitați
+la fiecare 65 de minute, ~5h20), apoi își pornește singur succesorul cu `gh workflow run` (permis
+pentru `GITHUB_TOKEN`, cu `actions: write`). Grupul de concurență pune succesorul la coadă, fără
+rulări paralele, iar un job nou așteaptă restul intervalului (din `lastRun`) ca să nu dubleze o
+verificare la predare. Cron-ul `30 * * * *` repornește lanțul dacă se rupe (job anulat de GitHub).
+Starea se comite cel mult o dată pe oră; codul se reia din git la fiecare iterație. Parametri la
+rulare manuală: `loop_minutes`, `interval_seconds`, `chain` (`false` = doar test).
 
-La 15 minute sunt ~770 cereri ASP pe zi (8 per rulare). Dacă apare mesajul de pauză ASP,
-cadența se mărește la 20-30 minute.
+**De ce 65 de minute:** ASP limitează cererile pe zi per IDNP. Pe 18.10.2026 limita a început să
+respingă la a 182-a cerere, cu verificări la 15 minute (768 pe zi). La 65 de minute sunt 22 de
+rulări × 8 = 176 de cereri pe zi, iar `/acum` (8 cereri fiecare, pe același IDNP) trebuie să
+încapă în marja rămasă.
 
 ## Configurare webhook (Vercel, comanda `/acum`)
 
