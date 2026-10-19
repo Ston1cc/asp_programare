@@ -1,5 +1,5 @@
 {
-  "lastRun": "2026-10-19T22:40:03.977Z",
+  "lastRun": "2026-10-19T23:45:03.473Z",
   "lastHeartbeatDate": "2026-10-19",
   "consecutiveFailures": 0,
   "earliest": {
@@ -198,7 +198,7 @@
     },
     "practic-urgent-radautanu|2026-11-19": {
       "date": "2026-11-19",
-      "timeSlots": 6
+      "timeSlots": 7
     },
     "practic-urgent-salcamilor|2026-11-10": {
       "date": "2026-11-10",
@@ -246,6 +246,6 @@
   "rateLimitedUntil": null,
   "aspDaily": {
     "date": "2026-10-19",
-    "count": 168
+    "count": 176
   }
 }
