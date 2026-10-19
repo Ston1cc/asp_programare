@@ -1,14 +1,14 @@
 {
-  "lastRun": "2026-10-19T16:10:02.914Z",
+  "lastRun": "2026-10-19T17:15:02.736Z",
   "lastHeartbeatDate": "2026-10-19",
   "consecutiveFailures": 0,
   "earliest": {
     "teoretic-obisnuit": "2026-11-12",
     "teoretic-urgent": "2026-11-03",
     "practic-obisnuit-salcamilor": "2026-11-17",
-    "practic-urgent-salcamilor": "2026-11-09",
+    "practic-urgent-salcamilor": "2026-11-10",
     "practic-obisnuit-radautanu": "2026-11-19",
-    "practic-obisnuit-ieasilor": "2026-11-25",
+    "practic-obisnuit-ieasilor": "2026-11-24",
     "practic-urgent-radautanu": "2026-11-16"
   },
   "slots": {
@@ -112,6 +112,10 @@
       "date": "2026-11-18",
       "timeSlots": null
     },
+    "teoretic-urgent|2026-11-19": {
+      "date": "2026-11-19",
+      "timeSlots": null
+    },
     "practic-obisnuit-radautanu|2026-11-19": {
       "date": "2026-11-19",
       "timeSlots": 5
@@ -124,9 +128,13 @@
       "date": "2026-11-30",
       "timeSlots": 6
     },
+    "practic-obisnuit-ieasilor|2026-11-24": {
+      "date": "2026-11-24",
+      "timeSlots": 1
+    },
     "practic-obisnuit-ieasilor|2026-11-25": {
       "date": "2026-11-25",
-      "timeSlots": 2
+      "timeSlots": 1
     },
     "practic-obisnuit-ieasilor|2026-11-26": {
       "date": "2026-11-26",
@@ -138,7 +146,7 @@
     },
     "practic-obisnuit-salcamilor|2026-11-17": {
       "date": "2026-11-17",
-      "timeSlots": 7
+      "timeSlots": 6
     },
     "practic-obisnuit-salcamilor|2026-11-18": {
       "date": "2026-11-18",
@@ -188,9 +196,9 @@
       "date": "2026-11-18",
       "timeSlots": 7
     },
-    "practic-urgent-salcamilor|2026-11-09": {
-      "date": "2026-11-09",
-      "timeSlots": 2
+    "practic-urgent-radautanu|2026-11-19": {
+      "date": "2026-11-19",
+      "timeSlots": 1
     },
     "practic-urgent-salcamilor|2026-11-10": {
       "date": "2026-11-10",
@@ -218,6 +226,10 @@
     },
     "practic-urgent-salcamilor|2026-11-18": {
       "date": "2026-11-18",
+      "timeSlots": 13
+    },
+    "practic-urgent-salcamilor|2026-11-19": {
+      "date": "2026-11-19",
       "timeSlots": null
     }
   },
@@ -234,6 +246,6 @@
   "rateLimitedUntil": null,
   "aspDaily": {
     "date": "2026-10-19",
-    "count": 120
+    "count": 128
   }
 }
