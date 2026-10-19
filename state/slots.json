@@ -1,5 +1,5 @@
 {
-  "lastRun": "2026-10-19T12:55:02.500Z",
+  "lastRun": "2026-10-19T14:00:02.977Z",
   "lastHeartbeatDate": "2026-10-19",
   "consecutiveFailures": 0,
   "earliest": {
@@ -122,7 +122,7 @@
     },
     "practic-obisnuit-radautanu|2026-11-19": {
       "date": "2026-11-19",
-      "timeSlots": 7
+      "timeSlots": 6
     },
     "practic-obisnuit-radautanu|2026-11-20": {
       "date": "2026-11-20",
@@ -146,7 +146,7 @@
     },
     "practic-obisnuit-salcamilor|2026-11-17": {
       "date": "2026-11-17",
-      "timeSlots": 10
+      "timeSlots": 8
     },
     "practic-obisnuit-salcamilor|2026-11-18": {
       "date": "2026-11-18",
@@ -242,6 +242,6 @@
   "rateLimitedUntil": null,
   "aspDaily": {
     "date": "2026-10-19",
-    "count": 96
+    "count": 104
   }
 }
