@@ -1,5 +1,5 @@
 {
-  "lastRun": "2026-10-19T23:45:03.473Z",
+  "lastRun": "2026-10-20T00:50:04.720Z",
   "lastHeartbeatDate": "2026-10-19",
   "consecutiveFailures": 0,
   "earliest": {
@@ -132,10 +132,6 @@
       "date": "2026-11-24",
       "timeSlots": 1
     },
-    "practic-obisnuit-ieasilor|2026-11-25": {
-      "date": "2026-11-25",
-      "timeSlots": 1
-    },
     "practic-obisnuit-ieasilor|2026-11-26": {
       "date": "2026-11-26",
       "timeSlots": 7
@@ -245,7 +241,7 @@
   },
   "rateLimitedUntil": null,
   "aspDaily": {
-    "date": "2026-10-19",
-    "count": 176
+    "date": "2026-10-20",
+    "count": 8
   }
 }
