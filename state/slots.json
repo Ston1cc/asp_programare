@@ -1,5 +1,5 @@
 {
-  "lastRun": "2026-10-20T14:55:06.388Z",
+  "lastRun": "2026-10-20T16:00:06.624Z",
   "lastHeartbeatDate": "2026-10-20",
   "consecutiveFailures": 0,
   "earliest": {
@@ -62,7 +62,7 @@
     },
     "teoretic-urgent|2026-11-03": {
       "date": "2026-11-03",
-      "timeSlots": 4
+      "timeSlots": 3
     },
     "teoretic-urgent|2026-11-04": {
       "date": "2026-11-04",
@@ -170,7 +170,7 @@
     },
     "practic-urgent-radautanu|2026-11-16": {
       "date": "2026-11-16",
-      "timeSlots": 3
+      "timeSlots": 2
     },
     "practic-urgent-radautanu|2026-11-17": {
       "date": "2026-11-17",
@@ -230,6 +230,6 @@
   "rateLimitedUntil": null,
   "aspDaily": {
     "date": "2026-10-20",
-    "count": 112
+    "count": 120
   }
 }
