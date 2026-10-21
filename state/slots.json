@@ -1,5 +1,5 @@
 {
-  "lastRun": "2026-10-21T16:06:05.419Z",
+  "lastRun": "2026-10-21T17:11:05.813Z",
   "lastHeartbeatDate": "2026-10-21",
   "consecutiveFailures": 0,
   "earliest": {
@@ -154,7 +154,7 @@
     },
     "practic-urgent-radautanu|2026-11-17": {
       "date": "2026-11-17",
-      "timeSlots": 4
+      "timeSlots": 3
     },
     "practic-urgent-radautanu|2026-11-18": {
       "date": "2026-11-18",
@@ -170,7 +170,7 @@
     },
     "practic-urgent-salcamilor|2026-11-11": {
       "date": "2026-11-11",
-      "timeSlots": 2
+      "timeSlots": 1
     },
     "practic-urgent-salcamilor|2026-11-12": {
       "date": "2026-11-12",
@@ -214,6 +214,6 @@
   "rateLimitedUntil": null,
   "aspDaily": {
     "date": "2026-10-21",
-    "count": 120
+    "count": 128
   }
 }
