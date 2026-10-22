@@ -1,5 +1,5 @@
 {
-  "lastRun": "2026-10-22T12:41:10.377Z",
+  "lastRun": "2026-10-22T13:46:09.857Z",
   "lastHeartbeatDate": "2026-10-22",
   "consecutiveFailures": 0,
   "earliest": {
@@ -8,7 +8,6 @@
     "practic-obisnuit-salcamilor": "2026-11-19",
     "practic-urgent-salcamilor": "2026-11-12",
     "practic-obisnuit-radautanu": "2026-11-30",
-    "practic-obisnuit-ieasilor": "2026-11-27",
     "practic-urgent-radautanu": "2026-11-18"
   },
   "slots": {
@@ -54,7 +53,7 @@
     },
     "teoretic-urgent|2026-11-05": {
       "date": "2026-11-05",
-      "timeSlots": 7
+      "timeSlots": 6
     },
     "teoretic-urgent|2026-11-06": {
       "date": "2026-11-06",
@@ -104,17 +103,13 @@
       "date": "2026-11-30",
       "timeSlots": 4
     },
-    "practic-obisnuit-ieasilor|2026-11-27": {
-      "date": "2026-11-27",
-      "timeSlots": 1
-    },
     "practic-obisnuit-salcamilor|2026-11-19": {
       "date": "2026-11-19",
       "timeSlots": 1
     },
     "practic-obisnuit-salcamilor|2026-11-20": {
       "date": "2026-11-20",
-      "timeSlots": 5
+      "timeSlots": 3
     },
     "practic-obisnuit-salcamilor|2026-11-23": {
       "date": "2026-11-23",
@@ -142,7 +137,7 @@
     },
     "practic-urgent-radautanu|2026-11-18": {
       "date": "2026-11-18",
-      "timeSlots": 6
+      "timeSlots": 5
     },
     "practic-urgent-radautanu|2026-11-19": {
       "date": "2026-11-19",
@@ -154,7 +149,7 @@
     },
     "practic-urgent-salcamilor|2026-11-12": {
       "date": "2026-11-12",
-      "timeSlots": 8
+      "timeSlots": 7
     },
     "practic-urgent-salcamilor|2026-11-13": {
       "date": "2026-11-13",
@@ -194,6 +189,6 @@
   "rateLimitedUntil": null,
   "aspDaily": {
     "date": "2026-10-22",
-    "count": 96
+    "count": 104
   }
 }
