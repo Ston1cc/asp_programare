@@ -1,5 +1,5 @@
 {
-  "lastRun": "2026-10-23T12:31:15.078Z",
+  "lastRun": "2026-10-23T13:36:16.090Z",
   "lastHeartbeatDate": "2026-10-23",
   "consecutiveFailures": 0,
   "earliest": {
@@ -12,7 +12,7 @@
   "slots": {
     "teoretic-obisnuit|2026-11-17": {
       "date": "2026-11-17",
-      "timeSlots": 3
+      "timeSlots": 1
     },
     "teoretic-obisnuit|2026-11-18": {
       "date": "2026-11-18",
@@ -52,7 +52,7 @@
     },
     "teoretic-urgent|2026-11-06": {
       "date": "2026-11-06",
-      "timeSlots": 5
+      "timeSlots": 4
     },
     "teoretic-urgent|2026-11-09": {
       "date": "2026-11-09",
@@ -160,6 +160,6 @@
   "rateLimitedUntil": null,
   "aspDaily": {
     "date": "2026-10-23",
-    "count": 96
+    "count": 104
   }
 }
