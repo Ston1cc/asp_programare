@@ -1,5 +1,5 @@
 {
-  "lastRun": "2026-10-25T12:11:22.794Z",
+  "lastRun": "2026-10-25T13:16:23.473Z",
   "lastHeartbeatDate": "2026-10-25",
   "consecutiveFailures": 0,
   "earliest": {
@@ -97,7 +97,7 @@
     },
     "practic-obisnuit-salcamilor|2026-11-23": {
       "date": "2026-11-23",
-      "timeSlots": 6
+      "timeSlots": 5
     },
     "practic-obisnuit-salcamilor|2026-11-24": {
       "date": "2026-11-24",
@@ -177,6 +177,6 @@
   "rateLimitedUntil": null,
   "aspDaily": {
     "date": "2026-10-25",
-    "count": 96
+    "count": 104
   }
 }
