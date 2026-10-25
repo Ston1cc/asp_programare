@@ -1,189 +1,204 @@
 # asp_programare
 
-Monitorizează disponibilitatea locurilor pentru examenul auto la ASP (Chișinău), pe 8
-categorii (teoretic/practic, obișnuit/urgent, practic pe 3 filiale), și trimite notificări
-pe Telegram. Are și o comandă la cerere (`/acum`) cu răspuns aproape instant, prin webhook.
+**Bot Telegram care te anunță când se eliberează o zi mai devreme la examenul auto ASP (Chișinău).**
+
+*Telegram bot that watches the Moldovan Public Services Agency (ASP) driving-exam calendar in
+Chișinău and alerts you as soon as an earlier exam date opens up.*
+
+> Proiect neoficial, fără nicio legătură cu ASP sau cu Agenția de Guvernare Electronică. Doar
+> citește calendarul public de programări: nu plătește, nu rezervă și nu depune nicio cerere.
+
+## De ce
+
+Locurile la examen se eliberează pe neașteptate (anulări, zile noi), iar cine verifică manual
+portalul de mai multe ori pe zi le prinde primul. Botul face asta în locul tău și îți scrie doar
+când contează: **când poți programa mai devreme decât înainte**.
+
+## Ce face
+
+- **Monitorizează 8 categorii:** examen teoretic și practic, programare obișnuită și urgentă,
+  practicul pe 3 filiale din Chișinău (Rădăuțanu, Calea Ieșilor, Salcâmilor).
+- **Alertă 🔥 doar pentru zile mai devreme** decât cea mai devreme dată cunoscută pe categorie.
+  Zilele noi care apar după ea nu generează mesaje.
+- **Rezumat zilnic la 07:30** cu cele mai apropiate date pe fiecare categorie.
+- **`/acum`:** verificare live în 1-2 secunde, la cerere.
+- **`/setari`:** alegi ce urmărești (teoretic/practic, obișnuit/urgent, filiale) și o dată-țintă
+  („anunță-mă doar pentru date până la…”).
+- **Mai mulți utilizatori:** alte persoane pot folosi botul pe propriile date, după aprobarea
+  proprietarului, și primesc aceleași alerte automate (le pot opri cu `/notificari`).
+
+## Comenzi
+
+| Comandă | Cine | Ce face |
+|---|---|---|
+| `/acum` (`/live`, `/check`) | toți | cele mai apropiate date, citite live |
+| `/setari` | toți | filtre: categorii, filiale, dată-țintă |
+| `/help` | toți | lista comenzilor disponibile pentru tine |
+| `/start`, `/inregistrare` | invitați | cerere de acces, apoi introducerea IDNP / serie / dată |
+| `/notificari` | invitați | pornește/oprește alertele automate |
+| `/sterge` | invitați | șterge datele salvate (cu confirmare) |
+| `/status` | proprietar | starea checker-ului, cererile ASP de azi, invitații |
+| `/utilizatori`, `/cereri` | proprietar | persoanele aprobate / toate cererile de acces |
+| `/revoca <chat_id>` | proprietar | retrage accesul și șterge datele unei persoane |
 
 ## Cum funcționează
 
-Interoghează direct API-ul public al portalului `eservicii.gov.md/asp/dimtcca`, descoperit
-prin inspecția fluxului de programare APO01. Nu folosește browser headless, doar 3 cereri
-HTTP simple per categorie:
+```
+GitHub Actions (buclă la 65 min) ──► src/index.js ──► ASP API ──► alerte Telegram (proprietar)
+              │
+              └─► POST /api/notify-guests (Vercel) ──► alerte Telegram (invitați)
 
-1. `GET /apo-request/get-service/{tip}/{urgent}[/{categorie}]` : service ID
-2. `GET /qmatic/locations/{serviceId}` : id-ul locației
-3. `POST /qmatic/dates` : zilele libere (± 3 luni), cu numărul de locuri pe zi
-
-Monitorul doar citește. Nu plătește, nu rezervă, nu depune nicio cerere.
-
-Proiectul are două componente:
-
-### 1. Verificarea periodică (GitHub Actions, la 65 de minute)
-
-`src/index.js`, rulat de `.github/workflows/check.yml`. Ține minte cea mai devreme zi
-liberă per categorie și trimite:
-
-- alertă imediată când apare o zi mai devreme decât minimul cunoscut (semnalul principal)
-- nimic pentru zile noi care apar după cea mai devreme dată cunoscută: contează doar când
-  poți programa mai devreme decât înainte
-- rezumat zilnic la 07:30 (Europe/Chisinau), cu situația completă
-
-**Limita zilnică ASP.** ASP acceptă un număr limitat de cereri pe zi per IDNP (estimat
-250-300), apoi răspunde cu HTTP 429 până la 00:00 UTC (03:00 Chișinău). La prima 429,
-checker-ul se oprește: trimite un singur mesaj de avertizare și nu mai face nicio cerere
-până la resetare. La fel pentru `/acum`. Numărul de cereri făcute azi apare în logul
-fiecărei rulări.
-
-### 2. Comanda la cerere (`/acum`, webhook pe Vercel)
-
-Scrii `/acum` (sau `/live`, `/check`) botului și primești răspuns instant (1-2
-secunde), citit live, nu din cache. `/help` listează toate comenzile disponibile; același
-meniu apare și în Telegram (butonul "Menu" de lângă câmpul de text).
-
-**`/setari`** (proprietar și invitați): butoane pentru ce urmărești. Teoretic / practic,
-obișnuit / urgent, fiecare filială de la practic, plus „📅 Până la” (o dată-țintă: nu te
-anunță decât pentru date până atunci). Se aplică și la `/acum` (se citesc doar categoriile
-alese, deci mai puține cereri din cota ASP), și la alertele și rezumatul automat. Diff-ul
-rulează mereu pe toate categoriile; setările filtrează doar ce vezi, deci reactivarea unei
-categorii nu produce alerte false. Setările proprietarului ajung la checker-ul din CI prin
-`api/owner-prefs.js`; dacă nu pot fi citite, alertele arată tot, ca înainte.
-
-**`/status`** (doar proprietar): ultima rulare a checker-ului și cât de veche e (cu avertisment
-peste 2 ore), cereri ASP azi, limita ASP, dacă `/acum` e blocat, câți invitați sunt
-aprobați / înregistrați / cu notificările oprite / în așteptare, rezultatul ultimei rulări de
-notificări și setările tale active.
-
-Arhitectural, e un webhook Telegram, nu polling: `api/telegram-webhook.js`, funcție
-serverless pe Vercel, înregistrată direct la Telegram prin `setWebhook`. Telegram trimite
-mesajul direct acolo, fără nicio verificare periodică.
-
-**Acces pentru alte persoane.** Oricine altcineva poate folosi botul, dar în numele lui,
-nu al proprietarului, și doar după aprobare manuală. La primul mesaj primește confirmare
-că cererea a fost trimisă proprietarului; proprietarul primește o notificare cu
-nume/@username/chat_id și butoane Aprobă/Respinge. După aprobare, `/inregistrare` cere pas
-cu pas IDNP, seria buletinului și data eliberării; mesajele cu aceste date sunt șterse din
-chat imediat după citire. Datele sunt salvate per `chat_id` în Redis, criptate
-(AES-256-GCM), cu TTL (90 zile pentru date confirmate, 10 minute pentru o înregistrare
-abandonată). `/sterge` șterge oricând datele salvate ale oricui le cere, după o confirmare
-cu butoane „Da, șterge” / „Anulează” (un tap greșit pe butonul din tastatură nu mai
-distruge datele). Proprietarul poate
-vedea cine are acces (`/utilizatori`) sau revoca accesul cuiva (`/revoca <chat_id>`). Botul
-iese singur din orice grup: e gândit doar pentru chat privat.
-
-**Notificări automate pentru invitați.** Un invitat aprobat și înregistrat primește, pe
-datele lui, aceleași mesaje ca proprietarul: alertă când apare o zi mai devreme sau nouă +
-rezumat zilnic la 07:30. Sunt pornite implicit și se opresc oricând cu `/notificari`
-(buton în tastatură; apăsat din nou le repornește, `/acum` merge oricum). Fiecare mesaj
-automat se termină cu "Nu mai vrei notificări automate? Apasă /notificari", iar primul
-explică ce va primi. Fiecare invitat consumă cota ASP a propriului IDNP, nu pe a
-proprietarului, iar la limita zilnică primește un singur mesaj de pauză. Rulează în
-`api/notify-guests.js`, apelat din CI după verificarea proprietarului (vezi mai jos).
-
-## Configurare locală
-
-```bash
-cp .env.example .env
-# completează .env cu IDNP, seria buletinului, data emiterii, token + chat id Telegram
-node --env-file=.env src/index.js
+Telegram ──► /api/telegram-webhook (Vercel) ──► /acum, /setari, înregistrare, aprobări
 ```
 
-## Configurare CI (GitHub Actions, verificarea periodică)
+Botul folosește direct API-ul JSON al portalului `eservicii.gov.md/asp/dimtcca` (cel folosit de
+pagina de programare), fără browser headless. Pentru fiecare categorie:
 
-Repo-ul trebuie să fie privat. Adaugă în Settings > Secrets and variables > Actions:
+1. `GET /apo-request/get-service/{tip}/False[/{categorie}]` → ID-ul serviciului
+2. `GET /qmatic/locations/{serviceId}` → ID-ul filialei
+3. `POST /qmatic/dates` → zilele libere (~3 luni înainte), cu numărul de locuri
+
+Urgența nu e un parametru boolean, ci un tip de examen separat (`TheoreticalUrgentExam`,
+`PracticalUrgentExam`); varianta „evidentă” (`TheoreticalExam/True`) răspunde fără eroare, dar cu
+calendarul altui serviciu.
+
+**Verificarea periodică** rulează pe GitHub Actions. Programarea `schedule` din GitHub e prea
+nesigură (în practică 4-6 rulări pe zi), așa că un job rulează în buclă (`scripts/ci-loop.sh`) la
+fiecare 65 de minute, ~5 ore, apoi își pornește singur succesorul. Starea (cea mai devreme dată pe
+categorie) e salvată în `state/slots.json`, comis înapoi în repo.
+
+**Comenzile** ajung printr-un webhook Telegram la o funcție serverless pe Vercel, deci răspunsul e
+aproape instant.
+
+## Limita zilnică ASP
+
+ASP acceptă un număr limitat de cereri `qmatic/dates` pe zi **per IDNP** (observat: ~180-200),
+apoi răspunde cu HTTP 429 până la 00:00 UTC (03:00 la Chișinău, ora de vară). O verificare
+completă costă 8 cereri, de aici cadența de 65 de minute (176 de cereri pe zi), care lasă puțin loc
+pentru `/acum` pe același IDNP.
+
+La primul 429, botul nu mai reîncearcă: trimite un singur mesaj de pauză și nu mai face nicio
+cerere pentru acel IDNP până la resetare. Fiecare utilizator are propria cotă, pe propriul IDNP.
+
+## Confidențialitate și securitate
+
+- Datele invitaților (IDNP, seria și data buletinului) sunt **criptate AES-256-GCM** înainte să
+  ajungă în Redis, cu o cheie (`USER_DATA_KEY`) păstrată separat; au TTL și se pot șterge oricând
+  cu `/sterge`.
+- Mesajele în care cineva își scrie datele sunt șterse din chat imediat după citire.
+- Accesul altor persoane se acordă doar manual, de proprietar (butoane Aprobă / Respinge).
+- Webhook-ul și endpoint-urile interne verifică un secret, comparat în timp constant.
+- Botul iese automat din orice grup: e gândit doar pentru chat privat.
+- Datele proprietarului stau doar în secretele GitHub / Vercel, niciodată în repo.
+
+## Instalare
+
+Ai nevoie de Node.js ≥ 20.6, un bot Telegram (de la [@BotFather](https://t.me/BotFather)), un
+cont GitHub și, pentru comenzi și invitați, un cont Vercel și o bază Redis (Redis Cloud, Upstash
+etc.).
+
+### 1. Local (o singură verificare)
+
+```bash
+cp .env.example .env    # IDNP, seria/numărul buletinului, data emiterii, token + chat id
+npm run check           # = node --env-file=.env src/index.js
+```
+
+Checker-ul nu are dependențe; `npm install` e necesar doar pentru funcțiile Vercel (`redis`).
+
+### 2. Verificarea periodică (GitHub Actions)
+
+Settings → Secrets and variables → Actions:
 
 | Secret | Descriere |
 |---|---|
 | `ASP_IDNP` | IDNP-ul persoanei care dă examenul |
 | `ASP_DOC_SERIES` | seria + numărul buletinului, fără spații |
-| `ASP_DOC_ISSUE_DATE` | data emiterii buletinului, format `YYYY-MM-DDTHH:mm:ss` |
-| `TELEGRAM_BOT_TOKEN` | token de la [@BotFather](https://t.me/BotFather) |
-| `TELEGRAM_CHAT_ID` | id-ul chatului unde ajung notificările |
-| `NOTIFY_SECRET` | același șir ca `NOTIFY_SECRET` din Vercel; autentifică apelul către `/api/notify-guests` |
+| `ASP_DOC_ISSUE_DATE` | data emiterii, format `YYYY-MM-DDTHH:mm:ss` |
+| `TELEGRAM_BOT_TOKEN` | tokenul botului |
+| `TELEGRAM_CHAT_ID` | chat-ul tău cu botul (destinatarul alertelor) |
+| `NOTIFY_SECRET` | șir random; aceeași valoare ca în Vercel |
 
-După verificarea proprietarului, workflow-ul face `POST /api/notify-guests` (pasul "Notifică
-invitații", `continue-on-error`). Notificările invitaților rulează pe Vercel, nu în CI,
-pentru că datele lor sunt criptate cu `USER_DATA_KEY`, care rămâne doar în Vercel.
+Workflow-ul `.github/workflows/check.yml` pornește singur (lanțul se reia și din cron-ul de
+siguranță). Rulare manuală din tab-ul Actions, cu parametrii `loop_minutes`, `interval_seconds` și
+`chain` (`false` = o singură buclă, pentru test).
 
-**Cadența (65 de minute) o dă workflow-ul însuși, fără cron extern.** GitHub `schedule` a rulat
-doar de 4-6 ori pe zi, indiferent de frecvența cerută (măsurat 29.09-17.10.2026), deci nu poate fi
-baza. În schimb, un job rulează în buclă (`scripts/ci-loop.sh`: verificare + notificări invitați
-la fiecare 65 de minute, ~5h20), apoi își pornește singur succesorul cu `gh workflow run` (permis
-pentru `GITHUB_TOKEN`, cu `actions: write`). Grupul de concurență pune succesorul la coadă, fără
-rulări paralele, iar un job nou așteaptă restul intervalului (din `lastRun`) ca să nu dubleze o
-verificare la predare. Cron-ul `30 * * * *` repornește lanțul dacă se rupe (job anulat de GitHub).
-Starea se comite cel mult o dată pe oră; codul se reia din git la fiecare iterație. Parametri la
-rulare manuală: `loop_minutes`, `interval_seconds`, `chain` (`false` = doar test).
+### 3. Comenzi și invitați (Vercel)
 
-**De ce 65 de minute:** ASP limitează cererile pe zi per IDNP. Pe 18.10.2026 limita a început să
-respingă la a 182-a cerere, cu verificări la 15 minute (768 pe zi). La 65 de minute sunt 22 de
-rulări × 8 = 176 de cereri pe zi, iar `/acum` (8 cereri fiecare, pe același IDNP) trebuie să
-încapă în marja rămasă.
+Importă repo-ul ca proiect Vercel (fără build; funcțiile sunt în `api/`) și adaugă variabilele de
+mai sus, plus:
 
-## Configurare webhook (Vercel, comanda `/acum`)
-
-Proiect Vercel separat (`asp-programare-webhook`), cu aceleași 5 variabile de mai sus, plus:
-
-| Env var | Descriere |
+| Variabilă | Descriere |
 |---|---|
-| `TELEGRAM_WEBHOOK_SECRET` | șir random, Telegram îl trimite înapoi la fiecare cerere ca dovadă de identitate |
-| `REDIS_URL` | necesar doar dacă vrei ca alte persoane (nu proprietarul) să poată folosi botul |
-| `USER_DATA_KEY` | obligatoriu împreună cu `REDIS_URL`, cheia de criptare a datelor altor persoane |
-| `NOTIFY_SECRET` | șir random (Bearer) pentru `/api/notify-guests`; aceeași valoare ca secretul GitHub cu același nume |
+| `TELEGRAM_WEBHOOK_SECRET` | șir random; Telegram îl trimite înapoi la fiecare cerere |
+| `REDIS_URL` | connection string Redis (`rediss://` dacă providerul oferă TLS) |
+| `USER_DATA_KEY` | 32 bytes random în base64, cheia de criptare a datelor invitaților |
 
-`REDIS_URL` e un connection string standard (`redis://default:PAROLA@host:port`); orice
-provider merge (Redis Cloud, Upstash TCP, self-hosted). Preferă `rediss://` (TLS) dacă
-providerul îl oferă. Fără `REDIS_URL`, doar proprietarul poate folosi botul.
-
-`USER_DATA_KEY` trebuie să fie 32 bytes random, codați base64:
 ```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"   # USER_DATA_KEY
 ```
-Dacă o schimbi ulterior, datele deja salvate în Redis devin ilizibile; persoanele afectate
-trebuie să se reînregistreze.
 
-Pași de configurare (o singură dată):
-1. Deploy `api/telegram-webhook.js` + `src/*.js` pe Vercel (funcție serverless, fără build).
-2. Dezactivează SSO/Vercel Authentication protection pe proiect, altfel Telegram primește
-   401 de la Vercel în loc de la cod.
-3. `POST https://api.telegram.org/bot<TOKEN>/setWebhook` cu `url` = URL-ul funcției și
-   `secret_token` = valoarea din `TELEGRAM_WEBHOOK_SECRET`.
-4. `npm run set-commands` (o singură dată, sau la fiecare schimbare a listei de comenzi).
-5. La [@BotFather](https://t.me/BotFather), `/setjoingroups` > Disable.
+Apoi, o singură dată:
 
-Proiectul Vercel e conectat la repo și se redeployează la fiecare push pe `master`. Dacă un
-deploy din git e blocat (autorul commit-ului trebuie să fie un email verificat pe contul
-GitHub care deține repo-ul, altfel planul Hobby îl refuză), fallback: `vercel --prod --yes`.
+1. Dezactivează Vercel Authentication / Deployment Protection pe proiect (altfel Telegram primește 401).
+2. Înregistrează webhook-ul:
+   `POST https://api.telegram.org/bot<TOKEN>/setWebhook` cu `url=https://<proiect>.vercel.app/api/telegram-webhook`
+   și `secret_token=<TELEGRAM_WEBHOOK_SECRET>`.
+3. `npm run set-commands` — meniul de comenzi din Telegram.
+4. La @BotFather: `/setjoingroups` → Disable.
 
-## Structură
+Fără `REDIS_URL`, botul merge doar pentru proprietar. Dacă schimbi `USER_DATA_KEY`, datele deja
+salvate devin ilizibile și invitații trebuie să se reînregistreze.
+
+## Structura proiectului
 
 ```
 src/
-├─ index.js         orchestrator pentru verificarea periodică (heartbeat + alerte + diff)
-├─ live.js          interogare live + mesaj de răspuns, folosit de webhook
-├─ asp.js           client API ASP (service id -> locație -> zile)
-├─ config.js        categorii + locații monitorizate, validare env
-├─ state.js         persistență + diff (inclusiv logica "cea mai devreme zi")
-├─ format.js        mesaje Telegram + utilitare de dată (fus Europe/Chisinau)
-├─ telegram.js      client Telegram Bot API + tastaturi persistente + setMyCommands
-├─ registration.js  flux conversațional (IDNP/serie/dată) + mesajul /help
-├─ userStore.js     persistență per chat_id (Redis) pentru datele altor persoane
-├─ check.js         verificarea unei persoane (fetch + diff + alertă + rezumat), comună proprietar/invitați
-├─ guests.js        bucla de notificări pentru invitații aprobați
-├─ prefs.js         setările /setari (filtre categorii/filiale/dată-țintă) + tastatura inline
-├─ status.js        mesajul /status (pur)
+├─ index.js         verificarea periodică a proprietarului (alertă, rezumat, limita ASP)
+├─ check.js         verificarea unei persoane: fetch + diff + mesaje (comun proprietar/invitați)
+├─ guests.js        notificările automate ale invitaților
+├─ asp.js           clientul API ASP (cu retry, timeout, fără retry la 429)
+├─ live.js          răspunsul la /acum
+├─ state.js         starea și diff-ul „cea mai devreme zi”
+├─ format.js        mesajele Telegram (MarkdownV2) și utilitarele de dată
+├─ prefs.js         /setari
+├─ status.js        /status
+├─ registration.js  înregistrarea invitaților și textele de acces
+├─ userStore.js     Redis: date criptate, acces, setări, limite
+├─ telegram.js      clientul Telegram Bot API și tastaturile
+├─ config.js        categoriile monitorizate și variabilele de mediu
 └─ secret.js        comparare de secrete în timp constant
 api/
-├─ telegram-webhook.js   funcție serverless (Vercel), răspunde la /acum etc.
-├─ notify-guests.js      funcție serverless (Vercel), notificările invitaților; apelată din CI
-└─ owner-prefs.js        funcție serverless (Vercel), setările proprietarului pentru CI
+├─ telegram-webhook.js   comenzile Telegram
+├─ notify-guests.js      apelat din CI după fiecare verificare
+└─ owner-prefs.js        setările proprietarului, pentru CI
 scripts/
-└─ set-commands.mjs      înregistrează comenzile în meniul nativ Telegram (o singură dată)
-state/slots.json   stare persistată de verificarea periodică, comisă înapoi în repo de CI
+├─ ci-loop.sh            bucla de verificare din GitHub Actions
+└─ set-commands.mjs      meniul de comenzi Telegram
+state/slots.json         starea checker-ului, actualizată de CI
 ```
 
-## Note
+## Limitări
 
-- Categoria practică e fixată pe B, cutie mecanică (`BMechanical`); se schimbă în
-  `src/config.js` dacă e nevoie de altă categorie (există și `BAutomatic`, verificat).
-- Dacă ASP blochează IP-urile de datacenter ale GitHub Actions/Vercel, verificarea
-  periodică rulează identic local (Task Scheduler / cron); doar trigger-ul se schimbă.
+- Doar Chișinău și categoria B; practicul e fixat pe cutie manuală (`BMechanical` în
+  `src/config.js`; `BAutomatic` există și a fost verificat).
+- Cadența e limitată de cota zilnică ASP per IDNP, nu de infrastructură.
+- API-ul ASP nu e public documentat: dacă portalul își schimbă structura, botul raportează eroarea
+  (după 3 rulări eșuate la rând) în loc să spună „nu sunt locuri”.
+- GitHub poate anula joburile; lanțul se reia din cron-ul de siguranță, cu o pauză de cel mult
+  câteva ore.
+
+## Depanare
+
+- **Push-ul nu declanșează deploy pe Vercel** (plan Hobby, repo privat): autorul commit-ului
+  trebuie să fie un email verificat pe contul GitHub care deține repo-ul. Alternativ:
+  `vercel --prod --yes`.
+- **„ASP a limitat cererile”**: cota zilnică a IDNP-ului e epuizată; botul reia singur după 03:00.
+  Dacă se întâmplă des, crește `interval_seconds`.
+- **Botul nu răspunde la comenzi**: verifică `TELEGRAM_WEBHOOK_SECRET` (aceeași valoare în Vercel
+  și la `setWebhook`) și protecția de deployment din Vercel.
+
+## Licență
+
+[MIT](LICENSE). Folosește-l, copiază-l și adaptează-l liber; răspunderea pentru ce faci cu el, inclusiv
+față de termenii portalului ASP, îți aparține.
