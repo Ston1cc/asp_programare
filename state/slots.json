@@ -1,7 +1,7 @@
 {
-  "lastRun": "2026-10-26T23:56:29.694Z",
+  "lastRun": "2026-10-27T01:01:29.374Z",
   "lastHeartbeatDate": "2026-10-26",
-  "consecutiveFailures": 5,
+  "consecutiveFailures": 6,
   "earliest": {
     "teoretic-obisnuit": "2026-11-18",
     "teoretic-urgent": "2026-11-09",
@@ -200,7 +200,7 @@
   },
   "rateLimitedUntil": null,
   "aspDaily": {
-    "date": "2026-10-26",
-    "count": 184
+    "date": "2026-10-27",
+    "count": 8
   }
 }
