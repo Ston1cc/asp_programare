@@ -1,10 +1,10 @@
 {
-  "lastRun": "2026-11-03T16:07:06.161Z",
+  "lastRun": "2026-11-03T17:12:06.558Z",
   "lastHeartbeatDate": "2026-11-03",
   "consecutiveFailures": 0,
   "earliest": {
-    "teoretic-obisnuit": "2026-11-25",
-    "teoretic-urgent": "2026-11-10",
+    "teoretic-obisnuit": "2026-11-26",
+    "teoretic-urgent": "2026-11-16",
     "practic-obisnuit-salcamilor": "2026-12-01",
     "practic-urgent-salcamilor": "2026-11-04",
     "practic-urgent-radautanu": "2026-12-01",
@@ -12,13 +12,9 @@
     "practic-obisnuit-ieasilor": "2026-12-10"
   },
   "slots": {
-    "teoretic-obisnuit|2026-11-25": {
-      "date": "2026-11-25",
-      "timeSlots": 1
-    },
     "teoretic-obisnuit|2026-11-26": {
       "date": "2026-11-26",
-      "timeSlots": 7
+      "timeSlots": 6
     },
     "teoretic-obisnuit|2026-11-27": {
       "date": "2026-11-27",
@@ -42,7 +38,7 @@
     },
     "teoretic-obisnuit|2026-12-04": {
       "date": "2026-12-04",
-      "timeSlots": null
+      "timeSlots": 7
     },
     "teoretic-obisnuit|2026-12-07": {
       "date": "2026-12-07",
@@ -116,10 +112,6 @@
       "date": "2026-12-31",
       "timeSlots": null
     },
-    "teoretic-urgent|2026-11-10": {
-      "date": "2026-11-10",
-      "timeSlots": 1
-    },
     "teoretic-urgent|2026-11-16": {
       "date": "2026-11-16",
       "timeSlots": 5
@@ -146,7 +138,7 @@
     },
     "teoretic-urgent|2026-11-24": {
       "date": "2026-11-24",
-      "timeSlots": null
+      "timeSlots": 7
     },
     "teoretic-urgent|2026-11-25": {
       "date": "2026-11-25",
@@ -178,7 +170,7 @@
     },
     "practic-obisnuit-radautanu|2026-12-03": {
       "date": "2026-12-03",
-      "timeSlots": 5
+      "timeSlots": 3
     },
     "practic-obisnuit-radautanu|2026-12-04": {
       "date": "2026-12-04",
@@ -350,7 +342,7 @@
     },
     "practic-urgent-salcamilor|2026-11-24": {
       "date": "2026-11-24",
-      "timeSlots": 6
+      "timeSlots": 5
     },
     "practic-urgent-salcamilor|2026-11-25": {
       "date": "2026-11-25",
@@ -394,6 +386,6 @@
   "rateLimitedUntil": null,
   "aspDaily": {
     "date": "2026-11-03",
-    "count": 120
+    "count": 128
   }
 }
