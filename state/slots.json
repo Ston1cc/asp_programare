@@ -1,5 +1,5 @@
 {
-  "lastRun": "2026-11-08T12:02:29.200Z",
+  "lastRun": "2026-11-08T13:07:28.850Z",
   "lastHeartbeatDate": "2026-11-08",
   "consecutiveFailures": 0,
   "earliest": {
@@ -15,7 +15,7 @@
   "slots": {
     "teoretic-obisnuit|2026-12-02": {
       "date": "2026-12-02",
-      "timeSlots": 3
+      "timeSlots": 2
     },
     "teoretic-obisnuit|2026-12-03": {
       "date": "2026-12-03",
@@ -275,7 +275,7 @@
     },
     "practic-urgent-ieasilor|2026-12-07": {
       "date": "2026-12-07",
-      "timeSlots": 7
+      "timeSlots": 6
     },
     "practic-urgent-ieasilor|2026-12-08": {
       "date": "2026-12-08",
@@ -323,6 +323,6 @@
   "rateLimitedUntil": null,
   "aspDaily": {
     "date": "2026-11-08",
-    "count": 96
+    "count": 104
   }
 }
