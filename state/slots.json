@@ -1,10 +1,10 @@
 {
-  "lastRun": "2026-11-11T05:02:43.005Z",
-  "lastHeartbeatDate": "2026-11-10",
+  "lastRun": "2026-11-11T06:07:42.504Z",
+  "lastHeartbeatDate": "2026-11-11",
   "consecutiveFailures": 0,
   "earliest": {
     "teoretic-obisnuit": "2026-12-07",
-    "teoretic-urgent": "2026-11-25",
+    "teoretic-urgent": "2026-11-23",
     "practic-obisnuit-salcamilor": "2026-12-08",
     "practic-urgent-salcamilor": "2026-12-02",
     "practic-urgent-radautanu": "2026-12-04",
@@ -85,6 +85,10 @@
       "date": "2026-12-31",
       "timeSlots": null
     },
+    "teoretic-urgent|2026-11-23": {
+      "date": "2026-11-23",
+      "timeSlots": 1
+    },
     "teoretic-urgent|2026-11-25": {
       "date": "2026-11-25",
       "timeSlots": 7
@@ -111,7 +115,7 @@
     },
     "teoretic-urgent|2026-12-03": {
       "date": "2026-12-03",
-      "timeSlots": 7
+      "timeSlots": null
     },
     "teoretic-urgent|2026-12-04": {
       "date": "2026-12-04",
@@ -255,7 +259,7 @@
     },
     "practic-urgent-ieasilor|2026-12-09": {
       "date": "2026-12-09",
-      "timeSlots": 4
+      "timeSlots": 3
     },
     "practic-urgent-ieasilor|2026-12-10": {
       "date": "2026-12-10",
@@ -311,6 +315,6 @@
   "rateLimitedUntil": null,
   "aspDaily": {
     "date": "2026-11-11",
-    "count": 40
+    "count": 48
   }
 }
