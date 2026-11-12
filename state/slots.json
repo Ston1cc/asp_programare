@@ -1,5 +1,5 @@
 {
-  "lastRun": "2026-11-12T22:12:52.136Z",
+  "lastRun": "2026-11-12T23:17:53.059Z",
   "lastHeartbeatDate": "2026-11-12",
   "consecutiveFailures": 0,
   "earliest": {
@@ -226,7 +226,7 @@
     },
     "practic-urgent-salcamilor|2026-12-04": {
       "date": "2026-12-04",
-      "timeSlots": 6
+      "timeSlots": 5
     },
     "practic-urgent-salcamilor|2026-12-07": {
       "date": "2026-12-07",
@@ -262,6 +262,6 @@
   "rateLimitedUntil": null,
   "aspDaily": {
     "date": "2026-11-12",
-    "count": 168
+    "count": 176
   }
 }
