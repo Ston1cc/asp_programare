@@ -1,5 +1,5 @@
 {
-  "lastRun": "2026-11-11T23:27:48.196Z",
+  "lastRun": "2026-11-12T00:32:47.984Z",
   "lastHeartbeatDate": "2026-11-11",
   "consecutiveFailures": 0,
   "earliest": {
@@ -12,6 +12,74 @@
     "practic-urgent-ieasilor": "2026-12-10"
   },
   "slots": {
+    "teoretic-obisnuit|2026-12-08": {
+      "date": "2026-12-08",
+      "timeSlots": 7
+    },
+    "teoretic-obisnuit|2026-12-09": {
+      "date": "2026-12-09",
+      "timeSlots": 7
+    },
+    "teoretic-obisnuit|2026-12-10": {
+      "date": "2026-12-10",
+      "timeSlots": 7
+    },
+    "teoretic-obisnuit|2026-12-11": {
+      "date": "2026-12-11",
+      "timeSlots": 7
+    },
+    "teoretic-obisnuit|2026-12-14": {
+      "date": "2026-12-14",
+      "timeSlots": 7
+    },
+    "teoretic-obisnuit|2026-12-15": {
+      "date": "2026-12-15",
+      "timeSlots": 7
+    },
+    "teoretic-obisnuit|2026-12-16": {
+      "date": "2026-12-16",
+      "timeSlots": 7
+    },
+    "teoretic-obisnuit|2026-12-17": {
+      "date": "2026-12-17",
+      "timeSlots": null
+    },
+    "teoretic-obisnuit|2026-12-18": {
+      "date": "2026-12-18",
+      "timeSlots": null
+    },
+    "teoretic-obisnuit|2026-12-21": {
+      "date": "2026-12-21",
+      "timeSlots": null
+    },
+    "teoretic-obisnuit|2026-12-22": {
+      "date": "2026-12-22",
+      "timeSlots": null
+    },
+    "teoretic-obisnuit|2026-12-23": {
+      "date": "2026-12-23",
+      "timeSlots": null
+    },
+    "teoretic-obisnuit|2026-12-24": {
+      "date": "2026-12-24",
+      "timeSlots": null
+    },
+    "teoretic-obisnuit|2026-12-28": {
+      "date": "2026-12-28",
+      "timeSlots": null
+    },
+    "teoretic-obisnuit|2026-12-29": {
+      "date": "2026-12-29",
+      "timeSlots": null
+    },
+    "teoretic-obisnuit|2026-12-30": {
+      "date": "2026-12-30",
+      "timeSlots": null
+    },
+    "teoretic-obisnuit|2026-12-31": {
+      "date": "2026-12-31",
+      "timeSlots": null
+    },
     "teoretic-urgent|2026-11-26": {
       "date": "2026-11-26",
       "timeSlots": 7
@@ -199,74 +267,6 @@
     "practic-urgent-salcamilor|2026-12-11": {
       "date": "2026-12-11",
       "timeSlots": 13
-    },
-    "teoretic-obisnuit|2026-12-08": {
-      "date": "2026-12-08",
-      "timeSlots": 7
-    },
-    "teoretic-obisnuit|2026-12-09": {
-      "date": "2026-12-09",
-      "timeSlots": 7
-    },
-    "teoretic-obisnuit|2026-12-10": {
-      "date": "2026-12-10",
-      "timeSlots": 7
-    },
-    "teoretic-obisnuit|2026-12-11": {
-      "date": "2026-12-11",
-      "timeSlots": 7
-    },
-    "teoretic-obisnuit|2026-12-14": {
-      "date": "2026-12-14",
-      "timeSlots": 7
-    },
-    "teoretic-obisnuit|2026-12-15": {
-      "date": "2026-12-15",
-      "timeSlots": 7
-    },
-    "teoretic-obisnuit|2026-12-16": {
-      "date": "2026-12-16",
-      "timeSlots": 7
-    },
-    "teoretic-obisnuit|2026-12-17": {
-      "date": "2026-12-17",
-      "timeSlots": null
-    },
-    "teoretic-obisnuit|2026-12-18": {
-      "date": "2026-12-18",
-      "timeSlots": null
-    },
-    "teoretic-obisnuit|2026-12-21": {
-      "date": "2026-12-21",
-      "timeSlots": null
-    },
-    "teoretic-obisnuit|2026-12-22": {
-      "date": "2026-12-22",
-      "timeSlots": null
-    },
-    "teoretic-obisnuit|2026-12-23": {
-      "date": "2026-12-23",
-      "timeSlots": null
-    },
-    "teoretic-obisnuit|2026-12-24": {
-      "date": "2026-12-24",
-      "timeSlots": null
-    },
-    "teoretic-obisnuit|2026-12-28": {
-      "date": "2026-12-28",
-      "timeSlots": null
-    },
-    "teoretic-obisnuit|2026-12-29": {
-      "date": "2026-12-29",
-      "timeSlots": null
-    },
-    "teoretic-obisnuit|2026-12-30": {
-      "date": "2026-12-30",
-      "timeSlots": null
-    },
-    "teoretic-obisnuit|2026-12-31": {
-      "date": "2026-12-31",
-      "timeSlots": null
     }
   },
   "initialized": {
@@ -279,9 +279,9 @@
     "practic-urgent-ieasilor": true,
     "practic-urgent-salcamilor": true
   },
-  "rateLimitedUntil": "2026-11-11T23:59:59.465Z",
+  "rateLimitedUntil": null,
   "aspDaily": {
-    "date": "2026-11-11",
-    "count": 170
+    "date": "2026-11-12",
+    "count": 8
   }
 }
