@@ -1,22 +1,18 @@
 {
-  "lastRun": "2026-11-14T06:43:22.317Z",
+  "lastRun": "2026-11-14T07:48:21.600Z",
   "lastHeartbeatDate": "2026-11-14",
   "consecutiveFailures": 0,
   "earliest": {
-    "teoretic-obisnuit": "2026-11-20",
+    "teoretic-obisnuit": "2026-12-09",
     "teoretic-urgent": "2026-12-01",
-    "practic-obisnuit-salcamilor": "2026-12-11",
+    "practic-obisnuit-salcamilor": "2026-12-14",
     "practic-urgent-salcamilor": "2026-12-07",
     "practic-obisnuit-radautanu": "2026-12-16",
     "practic-obisnuit-ieasilor": "2026-12-22",
-    "practic-urgent-ieasilor": "2026-11-21",
+    "practic-urgent-ieasilor": "2026-12-11",
     "practic-urgent-radautanu": "2026-12-14"
   },
   "slots": {
-    "teoretic-obisnuit|2026-11-20": {
-      "date": "2026-11-20",
-      "timeSlots": 1
-    },
     "teoretic-obisnuit|2026-12-09": {
       "date": "2026-12-09",
       "timeSlots": 6
@@ -43,7 +39,7 @@
     },
     "teoretic-obisnuit|2026-12-17": {
       "date": "2026-12-17",
-      "timeSlots": null
+      "timeSlots": 7
     },
     "teoretic-obisnuit|2026-12-18": {
       "date": "2026-12-18",
@@ -159,11 +155,7 @@
     },
     "practic-obisnuit-ieasilor|2026-12-24": {
       "date": "2026-12-24",
-      "timeSlots": 6
-    },
-    "practic-obisnuit-salcamilor|2026-12-11": {
-      "date": "2026-12-11",
-      "timeSlots": 1
+      "timeSlots": 5
     },
     "practic-obisnuit-salcamilor|2026-12-14": {
       "date": "2026-12-14",
@@ -191,7 +183,7 @@
     },
     "practic-obisnuit-salcamilor|2026-12-22": {
       "date": "2026-12-22",
-      "timeSlots": null
+      "timeSlots": 13
     },
     "practic-obisnuit-salcamilor|2026-12-23": {
       "date": "2026-12-23",
@@ -220,14 +212,6 @@
     "practic-urgent-radautanu|2026-12-14": {
       "date": "2026-12-14",
       "timeSlots": 7
-    },
-    "practic-urgent-ieasilor|2026-11-21": {
-      "date": "2026-11-21",
-      "timeSlots": 1
-    },
-    "practic-urgent-ieasilor|2026-12-10": {
-      "date": "2026-12-10",
-      "timeSlots": 1
     },
     "practic-urgent-ieasilor|2026-12-11": {
       "date": "2026-12-11",
@@ -271,6 +255,6 @@
   "rateLimitedUntil": null,
   "aspDaily": {
     "date": "2026-11-14",
-    "count": 56
+    "count": 64
   }
 }
