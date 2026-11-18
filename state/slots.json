@@ -1,14 +1,14 @@
 {
-  "lastRun": "2026-11-18T06:55:25.368Z",
+  "lastRun": "2026-11-18T08:00:26.214Z",
   "lastHeartbeatDate": "2026-11-18",
   "consecutiveFailures": 0,
   "earliest": {
     "teoretic-obisnuit": "2026-12-14",
     "teoretic-urgent": "2026-12-03",
     "practic-obisnuit-salcamilor": "2026-12-15",
-    "practic-urgent-salcamilor": "2026-12-09",
+    "practic-urgent-salcamilor": "2026-11-19",
     "practic-obisnuit-radautanu": "2026-12-28",
-    "practic-urgent-radautanu": "2026-12-14"
+    "practic-urgent-radautanu": "2026-12-15"
   },
   "slots": {
     "teoretic-obisnuit|2026-12-14": {
@@ -133,7 +133,7 @@
     },
     "practic-obisnuit-salcamilor|2026-12-16": {
       "date": "2026-12-16",
-      "timeSlots": 5
+      "timeSlots": 4
     },
     "practic-obisnuit-salcamilor|2026-12-17": {
       "date": "2026-12-17",
@@ -175,10 +175,6 @@
       "date": "2026-12-31",
       "timeSlots": null
     },
-    "practic-urgent-radautanu|2026-12-14": {
-      "date": "2026-12-14",
-      "timeSlots": 1
-    },
     "practic-urgent-radautanu|2026-12-15": {
       "date": "2026-12-15",
       "timeSlots": 5
@@ -194,6 +190,14 @@
     "practic-urgent-radautanu|2026-12-18": {
       "date": "2026-12-18",
       "timeSlots": 7
+    },
+    "practic-urgent-salcamilor|2026-11-19": {
+      "date": "2026-11-19",
+      "timeSlots": 10
+    },
+    "practic-urgent-salcamilor|2026-12-07": {
+      "date": "2026-12-07",
+      "timeSlots": 1
     },
     "practic-urgent-salcamilor|2026-12-09": {
       "date": "2026-12-09",
@@ -217,11 +221,11 @@
     },
     "practic-urgent-salcamilor|2026-12-16": {
       "date": "2026-12-16",
-      "timeSlots": 13
+      "timeSlots": null
     },
     "practic-urgent-salcamilor|2026-12-17": {
       "date": "2026-12-17",
-      "timeSlots": 12
+      "timeSlots": null
     },
     "practic-urgent-salcamilor|2026-12-18": {
       "date": "2026-12-18",
@@ -241,6 +245,6 @@
   "rateLimitedUntil": null,
   "aspDaily": {
     "date": "2026-11-18",
-    "count": 56
+    "count": 64
   }
 }
