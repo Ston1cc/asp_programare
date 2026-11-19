@@ -116,12 +116,40 @@ export function loadConfig(env = process.env) {
     );
   }
 
+  // Identitate de rezerva a proprietarului (optionala): cand ASP limiteaza IDNP-ul principal
+  // (429, cota zilnica per IDNP), verificarile continua pe aceasta. Ori toate cele 3
+  // variabile, ori niciuna.
+  const backupKeys = ['ASP_IDNP_2', 'ASP_DOC_SERIES_2', 'ASP_DOC_ISSUE_DATE_2'];
+  const backupSet = backupKeys.filter((key) => env[key]);
+  let backupPerson = null;
+  if (backupSet.length > 0) {
+    if (backupSet.length < backupKeys.length) {
+      throw new Error(
+        `Identitatea de rezerva e incompleta -- lipsesc: ${backupKeys.filter((key) => !env[key]).join(', ')}`,
+      );
+    }
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(env.ASP_DOC_ISSUE_DATE_2)) {
+      throw new Error(
+        `ASP_DOC_ISSUE_DATE_2 trebuie in format ISO "YYYY-MM-DDTHH:mm:ss", primit: "${env.ASP_DOC_ISSUE_DATE_2}"`,
+      );
+    }
+    if (env.ASP_IDNP_2 === env.ASP_IDNP) {
+      throw new Error('ASP_IDNP_2 e identic cu ASP_IDNP -- rezerva n-ar avea cota proprie.');
+    }
+    backupPerson = {
+      idnp: env.ASP_IDNP_2,
+      seriaAndNumber: env.ASP_DOC_SERIES_2,
+      issueDate: env.ASP_DOC_ISSUE_DATE_2,
+    };
+  }
+
   return {
     person: {
       idnp: env.ASP_IDNP,
       seriaAndNumber: env.ASP_DOC_SERIES,
       issueDate: env.ASP_DOC_ISSUE_DATE,
     },
+    backupPerson,
     telegram: {
       botToken: env.TELEGRAM_BOT_TOKEN,
       chatId: env.TELEGRAM_CHAT_ID,

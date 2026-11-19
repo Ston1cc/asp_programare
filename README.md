@@ -80,6 +80,11 @@ pentru `/acum` pe același IDNP.
 La primul 429, botul nu mai reîncearcă: trimite un singur mesaj de pauză și nu mai face nicio
 cerere pentru acel IDNP până la resetare. Fiecare utilizator are propria cotă, pe propriul IDNP.
 
+**IDNP de rezervă (opțional, al tău):** setează `ASP_IDNP_2`, `ASP_DOC_SERIES_2` și
+`ASP_DOC_ISSUE_DATE_2` (în `.env` și ca secrete GitHub). Când IDNP-ul principal primește 429,
+verificările continuă pe cel de rezervă, cu cota lui; botul te anunță o singură dată. Pauza
+completă începe doar când ambele sunt limitate.
+
 ## Confidențialitate și securitate
 
 - Datele invitaților (IDNP, seria și data buletinului) sunt **criptate AES-256-GCM** înainte să

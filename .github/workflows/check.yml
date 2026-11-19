@@ -54,6 +54,11 @@ jobs:
           ASP_IDNP: ${{ secrets.ASP_IDNP }}
           ASP_DOC_SERIES: ${{ secrets.ASP_DOC_SERIES }}
           ASP_DOC_ISSUE_DATE: ${{ secrets.ASP_DOC_ISSUE_DATE }}
+          # Identitate de rezerva (optionala, toate 3 sau niciuna): preia cand ASP limiteaza
+          # IDNP-ul principal. Cota ASP e per IDNP, deci rezerva are cota proprie.
+          ASP_IDNP_2: ${{ secrets.ASP_IDNP_2 }}
+          ASP_DOC_SERIES_2: ${{ secrets.ASP_DOC_SERIES_2 }}
+          ASP_DOC_ISSUE_DATE_2: ${{ secrets.ASP_DOC_ISSUE_DATE_2 }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           # Setarile /setari ale proprietarului (api/owner-prefs.js) + apelul notify-guests.

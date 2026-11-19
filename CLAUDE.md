@@ -61,6 +61,13 @@ because they have fundamentally different latency requirements.
   (`buildRateLimitMessage`), and make **zero** ASP requests until that time. A limited run
   exits 0 and leaves `consecutiveFailures` untouched — a 429 says nothing about the site's
   structure, unlike the "all categories failed" case the streak/alert exists for.
+  **Backup identity (optional, owner's own):** `ASP_IDNP_2` / `ASP_DOC_SERIES_2` /
+  `ASP_DOC_ISSUE_DATE_2` (all three or none, `loadConfig` → `config.backupPerson`). `runOwner`
+  passes `checkPerson` a failover `fetchDates`: tries the primary, on 429 marks it blocked
+  (`state.rateLimitedUntil`) and retries that same category on the backup
+  (`state.backupRateLimitedUntil`, own quota; `aspDailyBackup` counts its requests). One
+  `buildBackupSwitchMessage` when the primary first gets limited; `buildRateLimitMessage` +
+  zero requests only when *every* identity is blocked. Vercel `/acum` and guests don't use the backup.
 - **`/setari`, `/status`, `/sterge` confirmation (`src/prefs.js`, `src/status.js`,
   `api/owner-prefs.js`)** —
   `/setari` (owner + approved guests): inline toggles for teoretic/practic,

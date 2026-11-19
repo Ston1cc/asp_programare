@@ -508,6 +508,16 @@ export function buildRateLimitMessage({ until, countToday, now = new Date() }) {
   ].join('\n');
 }
 
+/** Trimis o singura data, cand IDNP-ul principal e limitat dar verificarile continua pe rezerva. */
+export function buildBackupSwitchMessage({ until, countToday, now = new Date() }) {
+  const count = countToday > 0 ? ` după ${countToday} cereri azi` : '';
+  return [
+    '🔁 *ASP a limitat IDNP-ul principal*',
+    '',
+    escapeMarkdownV2(`Limită zilnică${count}. Continui verificările pe IDNP-ul de rezervă; principalul revine după ${formatBlockUntil(until, now)}.`),
+  ].join('\n');
+}
+
 /** Raspuns la /acum cat timp IDNP-ul e blocat -- zero cereri ASP. */
 export function buildAspBlockedMessage({ until, now = new Date() }) {
   return [

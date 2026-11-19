@@ -17,6 +17,9 @@ export const EMPTY_STATE = () => ({
   // Cereri `dates` facute in ziua UTC curenta (cota ASP se reseteaza la 00:00 UTC) -- doar
   // pentru vizibilitate in loguri, ca sa aflam cota reala din date, nu din estimari.
   aspDaily: { date: null, count: 0 },
+  // Aceleasi doua campuri, pentru identitatea de rezerva (ASP_IDNP_2) -- cota ei e separata.
+  backupRateLimitedUntil: null,
+  aspDailyBackup: { date: null, count: 0 },
 });
 
 export async function loadState(path) {

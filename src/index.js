@@ -7,7 +7,8 @@
 import { fileURLToPath } from 'node:url';
 import { CATEGORIES, VERCEL_BASE_URL, loadConfig } from './config.js';
 import { loadState, saveState } from './state.js';
-import { buildFailureMessage, buildRateLimitMessage } from './format.js';
+import { buildBackupSwitchMessage, buildFailureMessage, buildRateLimitMessage } from './format.js';
+import { fetchCategoryDates, RateLimitError } from './asp.js';
 import { sendTelegramMessage } from './telegram.js';
 import { checkPerson } from './check.js';
 import { DEFAULT_PREFS, normalizePrefs } from './prefs.js';
@@ -46,23 +47,55 @@ async function runOwner(config, now, cache) {
   // --- Circuit breaker ASP 429 ---
   // ASP limiteaza per IDNP, zilnic (verificat live 24.09.2026, reset 00:00 UTC). Cat timp
   // limita e activa, fiecare cerere e irosita si doar prelungeste problema -- deci zero
-  // cereri pana la `rateLimitedUntil`, nu retry-uri.
-  if (state.rateLimitedUntil && now < new Date(state.rateLimitedUntil)) {
-    console.log(`ASP a limitat IDNP-ul proprietarului pana la ${state.rateLimitedUntil} -- nicio cerere facuta.`);
+  // cereri pana la `rateLimitedUntil`, nu retry-uri. Cu identitate de rezerva (ASP_IDNP_2),
+  // fiecare identitate are propria limita; zero cereri doar cand TOATE sunt blocate.
+  const activeUntil = (iso) => (iso && now < new Date(iso) ? new Date(iso) : null);
+  const primary = { person: config.person, blockedUntil: activeUntil(state.rateLimitedUntil), count: 0 };
+  const backup = config.backupPerson
+    ? { person: config.backupPerson, blockedUntil: activeUntil(state.backupRateLimitedUntil), count: 0 }
+    : null;
+  const identities = backup ? [primary, backup] : [primary];
+
+  if (identities.every((id) => id.blockedUntil)) {
+    console.log(
+      `ASP a limitat ${backup ? 'ambele IDNP-uri (principal + rezerva)' : 'IDNP-ul proprietarului'} -- nicio cerere facuta.`,
+    );
     state.lastRun = now.toISOString();
     await saveState(STATE_PATH, state);
     return false;
   }
+  const primaryBlockedAtStart = Boolean(primary.blockedUntil);
 
   // Contor zilnic (ziua UTC, ca resetul ASP) -- doar pentru vizibilitate in loguri.
   const todayUtc = now.toISOString().slice(0, 10);
   if (state.aspDaily?.date !== todayUtc) state.aspDaily = { date: todayUtc, count: 0 };
+  if (state.aspDailyBackup?.date !== todayUtc) state.aspDailyBackup = { date: todayUtc, count: 0 };
+
+  // Failover per cerere: incearca identitatile nelimitate in ordine; la 429 o marcheaza
+  // blocata si reia aceeasi categorie pe urmatoarea. Doar cand toate sunt blocate arunca
+  // RateLimitError (cu cea mai devreme reluare), pe care checkPerson il trateaza ca pana acum.
+  const fetchDates = async (category, _person, opts) => {
+    for (const id of identities) {
+      if (id.blockedUntil) continue;
+      id.count += 1;
+      try {
+        return await fetchCategoryDates(category, id.person, opts);
+      } catch (err) {
+        if (!(err instanceof RateLimitError)) throw err;
+        console.error(`[${category.key}] ${id === primary ? 'principal' : 'rezerva'} limitat: ${err.message}`);
+        id.blockedUntil = err.until;
+      }
+    }
+    const earliest = new Date(Math.min(...identities.map((id) => id.blockedUntil.getTime())));
+    throw new RateLimitError(category.key, earliest);
+  };
 
   const prefs = await loadOwnerPrefs();
-  const result = await checkPerson({ person: config.person, state, now, cache, prefs });
-  const { messages: dataMessages, categoryResults, errors, rateLimit, attempted } = result;
+  const result = await checkPerson({ person: config.person, state, now, cache, prefs, fetchDates });
+  const { messages: dataMessages, categoryResults, errors, rateLimit } = result;
   const nextState = result.nextState;
-  nextState.aspDaily = { date: todayUtc, count: state.aspDaily.count + attempted };
+  nextState.aspDaily = { date: todayUtc, count: state.aspDaily.count + primary.count };
+  nextState.aspDailyBackup = { date: todayUtc, count: state.aspDailyBackup.count + (backup?.count ?? 0) };
 
   const messages = [];
 
@@ -74,17 +107,29 @@ async function runOwner(config, now, cache) {
   // ramane neatins, iar utilizatorul primeste un mesaj dedicat, o singura data.
   const allFailed = !rateLimit && errors.length === CATEGORIES.length;
   if (rateLimit) {
-    messages.push(buildRateLimitMessage({ until: rateLimit.until, countToday: nextState.aspDaily.count, now }));
+    messages.push(
+      buildRateLimitMessage({
+        until: rateLimit.until,
+        countToday: nextState.aspDaily.count + nextState.aspDailyBackup.count,
+        now,
+      }),
+    );
   } else {
     nextState.consecutiveFailures = allFailed ? state.consecutiveFailures + 1 : 0;
     if (nextState.consecutiveFailures === FAILURE_THRESHOLD) {
       messages.push(buildFailureMessage(errors));
     }
+    // Principalul tocmai a fost limitat in aceasta rulare, dar rezerva a preluat -- o singura
+    // notificare (la rulari urmatoare principalul e deja blocat din start, deci tacem).
+    if (backup && !primaryBlockedAtStart && primary.blockedUntil) {
+      messages.push(buildBackupSwitchMessage({ until: primary.blockedUntil, countToday: nextState.aspDaily.count, now }));
+    }
   }
   messages.push(...dataMessages);
 
   // null cand rularea a mers -- o limita expirata nu ramane agatata in state.
-  nextState.rateLimitedUntil = rateLimit ? rateLimit.until.toISOString() : null;
+  nextState.rateLimitedUntil = primary.blockedUntil ? primary.blockedUntil.toISOString() : null;
+  nextState.backupRateLimitedUntil = backup?.blockedUntil ? backup.blockedUntil.toISOString() : null;
   nextState.lastRun = now.toISOString();
 
   for (const msg of messages) {
@@ -96,7 +141,8 @@ async function runOwner(config, now, cache) {
   console.log(
     `OK — ${categoryResults.length}/${CATEGORIES.length} categorii citite, ${messages.length} mesaje trimise, ${errors.length} erori, ` +
       `${nextState.aspDaily.count} cereri ASP azi (UTC)` +
-      (rateLimit ? `, LIMITAT pana la ${nextState.rateLimitedUntil}.` : '.'),
+      (backup ? ` (+${nextState.aspDailyBackup.count} pe rezerva)` : '') +
+      (rateLimit ? `, LIMITAT pana la ${rateLimit.until.toISOString()}.` : '.'),
   );
 
   return allFailed;
