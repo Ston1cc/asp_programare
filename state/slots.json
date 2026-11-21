@@ -1,5 +1,5 @@
 {
-  "lastRun": "2026-11-21T08:36:20.872Z",
+  "lastRun": "2026-11-21T09:41:20.622Z",
   "lastHeartbeatDate": "2026-11-21",
   "consecutiveFailures": 0,
   "earliest": {
@@ -106,7 +106,7 @@
     },
     "practic-obisnuit-salcamilor|2026-12-18": {
       "date": "2026-12-18",
-      "timeSlots": 2
+      "timeSlots": 1
     },
     "practic-obisnuit-salcamilor|2026-12-21": {
       "date": "2026-12-21",
@@ -146,11 +146,11 @@
     },
     "practic-urgent-radautanu|2026-12-18": {
       "date": "2026-12-18",
-      "timeSlots": 6
+      "timeSlots": 5
     },
     "practic-urgent-ieasilor|2026-12-21": {
       "date": "2026-12-21",
-      "timeSlots": 5
+      "timeSlots": 3
     },
     "practic-urgent-salcamilor|2026-11-23": {
       "date": "2026-11-23",
@@ -158,7 +158,7 @@
     },
     "practic-urgent-salcamilor|2026-12-11": {
       "date": "2026-12-11",
-      "timeSlots": 5
+      "timeSlots": 4
     },
     "practic-urgent-salcamilor|2026-12-14": {
       "date": "2026-12-14",
@@ -198,7 +198,7 @@
   "rateLimitedUntil": null,
   "aspDaily": {
     "date": "2026-11-21",
-    "count": 64
+    "count": 72
   },
   "backupRateLimitedUntil": null,
   "aspDailyBackup": {
