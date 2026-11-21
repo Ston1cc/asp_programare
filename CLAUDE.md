@@ -27,10 +27,10 @@ Two independent pieces, both plain HTTP clients against ASP's public JSON API, s
 same `config`/`asp`/`format`/`telegram` modules, deployed to two different platforms
 because they have fundamentally different latency requirements.
 
-- **`src/index.js`** — periodic checker, run every **30 min** by
+- **`src/index.js`** — periodic checker, run every **10 min** by
   `.github/workflows/check.yml` on GitHub Actions via a **self-chaining loop**
   (`scripts/ci-loop.sh`): one job loops `node src/index.js` + `POST /api/notify-guests` every
-  `INTERVAL_SECONDS` (1800) for `LOOP_MINUTES` (320), then its last step runs `gh workflow run
+  `INTERVAL_SECONDS` (600) for `LOOP_MINUTES` (320), then its last step runs `gh workflow run
   check.yml` (`workflow_dispatch` from `GITHUB_TOKEN` is allowed; needs `actions: write`). GitHub's
   own `schedule` is *not* the cadence: it fired only 4–6×/day even at hourly (measured
   29.09–17.10.2026), so the `30 * * * *` cron is only the restart if the chain breaks. The
@@ -41,7 +41,7 @@ because they have fundamentally different latency requirements.
   out the rest of the interval before its first iteration — without this, every handoff (~4×/day)
   did a duplicate check, ~36 wasted ASP requests/day. Each iteration `git pull`s first, so a push
   takes effect on the next check; state is committed at most hourly (not per iteration) and at
-  loop end. **Interval history (65 → 30 min, changed 21.11.2026 at the owner's request):** 30 min = 48 runs × 8 = 384 requests/day, i.e. about twice the observed quota, so the quota runs out around mid-day (circuit breaker below stops requests until 00:00 UTC; the backup identity, if configured, takes over). It was 65 min because: the daily ASP quota is per IDNP and on 18.10.2026 it started
+  loop end. **Interval history (65 → 30 → 10 min, changed 21.11.2026 at the owner's request):** 10 min = 144 runs/day × (number of *active* categories from `/setari`); with all 8 that is 1152 requests/day, far above the observed quota, so it only fits with few active categories (2 → 288/day, needs the backup identity; 1 → 144/day fits one IDNP). If more categories are re-enabled the quota runs out early in the day (circuit breaker below stops requests until 00:00 UTC; the backup identity, if configured, takes over). It was 65 min because: the daily ASP quota is per IDNP and on 18.10.2026 it started
   rejecting at the 182nd request (181 accepted) with checks every 15 min (768/day); at 65 min that
   is 22 runs × 8 = 176/day, leaving a small margin for the owner's `/acum` (8 requests each, same
   IDNP, *not* counted in `aspDaily`). Real quota is therefore somewhere ≥181, likely ~200. Fetches all monitored targets, diffs against `state/slots.json`
@@ -75,12 +75,15 @@ because they have fundamentally different latency requirements.
   message is read as `pending: { step: 'prefBefore' }`, handled *separately* from the
   registration steps even though it shares the `pending:<chatId>` key, and a `/command`
   typed instead of an answer cancels it and runs normally). Prefs are stored plain in
-  `prefs:<chatId>` (booleans + a date, no personal data). **Filtering is display-only,
-  never diff-level:** `checkPerson` fetches and `computeDiff`s *all* 8 categories and only
-  then applies `applyPrefsToEvents`/`filterCategoryResultsByPrefs` to what gets sent —
-  otherwise re-enabling a category would look like a false "record" against a stale
-  baseline. `/acum` is the exception on the fetch side: `buildLiveReply(person, { prefs })`
-  reads only `selectCategories(prefs)`, which also saves ASP quota. The filiala filter
+  `prefs:<chatId>` (booleans + a date, no personal data). **Category toggles decide what is *fetched*
+  (changed 21.11.2026):** `checkPerson` reads only `selectCategories(prefs)` (fewer `dates`
+  requests = less ASP quota) and, since a disabled category is no longer read,
+  `forgetCategories` (`state.js`) drops its `earliest`/`slots`/`initialized` from the state, so
+  re-enabling it starts a silent baseline instead of a false "record" against stale data. A
+  category that was *selected* but failed/429'd this run is not forgotten (`computeDiff` keeps
+  it). The date window (`before`/`lastExam`) is still display-only: the diff covers every
+  selected category and `applyPrefsToEvents`/`filterCategoryResultsByPrefs` trim what gets
+  sent. `/acum` likewise reads only `selectCategories(prefs)`. The filiala filter
   applies to practic only (teoretic's single filiala, Salcâmilor, shares a `locationId`
   with one of practic's three and must not vanish when it's unchecked under practic).
   `pref:<path>` and `del:yes|no` callbacks are deliberately **not** owner-gated like
@@ -93,14 +96,14 @@ because they have fundamentally different latency requirements.
   `/status` (owner only; `/status` is no longer an alias of `/acum`) is built by the pure
   `buildStatusMessage` from `status:owner` (the owner's `state/slots.json` fields, which CI
   POSTs as the body of its `/api/notify-guests` call, so a failed check still reports its
-  stale `lastRun` — warned about after 70 min, two missed 30-min runs), `status:guests` (last guest-run summary) and
+  stale `lastRun` — warned about after 35 min, three missed 10-min runs), `status:guests` (last guest-run summary) and
   live Redis counts. `/sterge` now only asks (`DELETE_CONFIRM_KEYBOARD`); the deletion runs
   in `handleDeleteCallback` after "Da, șterge", because it's a persistent keyboard button
   and one stray tap used to erase a guest's data.
 - **Guest notifications (`src/check.js`, `src/guests.js`, `api/notify-guests.js`)** —
   approved + registered guests get the same automatic messages as the owner (alert on an
   earlier/new date + 07:30 summary), on *their own* IDNP and ASP quota. `src/check.js`
-  `checkPerson` is the shared per-person core (fetch all categories, stop at the first
+  `checkPerson` is the shared per-person core (fetch the categories selected in prefs, stop at the first
   `RateLimitError`, `computeDiff`, alert + heartbeat); it sends/writes nothing, the caller
   does. `src/index.js` uses it for the owner (file state); `src/guests.js` `runGuests`
   iterates `listApprovedAccess()` and for each guest skips if notifications are off

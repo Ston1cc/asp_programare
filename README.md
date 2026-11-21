@@ -44,7 +44,7 @@ când contează: **când poți programa mai devreme decât înainte**.
 ## Cum funcționează
 
 ```
-GitHub Actions (buclă la 30 min) ──► src/index.js ──► ASP API ──► alerte Telegram (proprietar)
+GitHub Actions (buclă la 10 min) ──► src/index.js ──► ASP API ──► alerte Telegram (proprietar)
               │
               └─► POST /api/notify-guests (Vercel) ──► alerte Telegram (invitați)
 
@@ -64,7 +64,7 @@ calendarul altui serviciu.
 
 **Verificarea periodică** rulează pe GitHub Actions. Programarea `schedule` din GitHub e prea
 nesigură (în practică 4-6 rulări pe zi), așa că un job rulează în buclă (`scripts/ci-loop.sh`) la
-fiecare 30 de minute, ~5 ore, apoi își pornește singur succesorul. Starea (cea mai devreme dată pe
+fiecare 10 minute, ~5 ore, apoi își pornește singur succesorul. Starea (cea mai devreme dată pe
 categorie) e salvată în `state/slots.json`, comis înapoi în repo.
 
 **Comenzile** ajung printr-un webhook Telegram la o funcție serverless pe Vercel, deci răspunsul e
@@ -74,7 +74,7 @@ aproape instant.
 
 ASP acceptă un număr limitat de cereri `qmatic/dates` pe zi **per IDNP** (observat: ~180-200),
 apoi răspunde cu HTTP 429 până la 00:00 UTC (03:00 la Chișinău, ora de vară). O verificare
-completă costă 8 cereri, cu cadența de 30 de minute sunt 384 de cereri pe zi, deci cota se epuizează înainte de sfârșitul zilei (la 65 de minute erau 176 pe zi, ceea ce lăsa puțin loc
+completă costă până la 8 cereri (câte una pe categorie activă din `/setari`: dezactivând teoreticul sau filiale, scade). Cu cadența de 10 minute (144 de rulări pe zi) înseamnă 144 × numărul de categorii active: cu toate cele 8 active ar fi 1152 de cereri pe zi, deci cota se epuizează repede; cu 2 categorii active sunt 288 pe zi, care încap doar cu IDNP-ul de rezervă. Cu cadența de 30 de minute și toate cele 8 active erau 384 pe zi (la 65 de minute erau 176 pe zi, ceea ce lăsa puțin loc
 pentru `/acum` pe același IDNP).
 
 La primul 429, botul nu mai reîncearcă: trimite un singur mesaj de pauză și nu mai face nicio

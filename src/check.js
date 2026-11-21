@@ -5,8 +5,8 @@
 
 import { CATEGORIES } from './config.js';
 import { fetchCategoryDates, RateLimitError } from './asp.js';
-import { computeDiff } from './state.js';
-import { DEFAULT_PREFS, applyPrefsToEvents, filterCategoryResultsByPrefs, hasDateWindow } from './prefs.js';
+import { computeDiff, forgetCategories } from './state.js';
+import { DEFAULT_PREFS, applyPrefsToEvents, filterCategoryResultsByPrefs, hasDateWindow, selectCategories } from './prefs.js';
 import {
   filterCurrentAndNextMonth,
   buildAlertMessage,
@@ -27,17 +27,20 @@ export const HEARTBEAT_MINUTE = 30;
  * limita ASP si alerta de esec le adauga apelantul (difera intre proprietar si invitati).
  * La prima RateLimitError opreste bucla -- restul categoriilor ar primi acelasi 429.
  *
- * `prefs` (src/prefs.js, /setari) filtreaza DOAR ce apare in mesaje. Fetch-ul si diff-ul
- * ruleaza mereu pe toate categoriile -- altfel reactivarea unei categorii ar arata ca un
- * "record" fals fata de un baseline vechi.
+ * `prefs` (src/prefs.js, /setari): categoriile dezactivate NU se citesc (cota ASP) si sunt uitate
+ * din state (forgetCategories) -- la reactivare au un baseline nou, deci fara "record" fals.
+ * Filtrul pe data ("Pana la"/"Ultimul examen") ramane doar de afisare.
  */
-export async function checkPerson({ person, state, now = new Date(), cache, categories = CATEGORIES, prefs = DEFAULT_PREFS, fetchDates = fetchCategoryDates }) {
+export async function checkPerson({ person, state, now = new Date(), cache, categories, prefs = DEFAULT_PREFS, fetchDates = fetchCategoryDates }) {
+  // Se citesc DOAR categoriile active din /setari (mai putine cereri din cota ASP). `categories`
+  // explicit are prioritate (teste).
+  const toFetch = categories ?? selectCategories(prefs);
   const categoryResults = [];
   const errors = [];
   let rateLimit = null;
   let attempted = 0;
 
-  for (const category of categories) {
+  for (const category of toFetch) {
     try {
       // Numarat inainte de fetch: aproximeaza cererile `dates` (get-service/locations nu au
       // IDNP si nu conteaza la cota).
@@ -61,9 +64,16 @@ export async function checkPerson({ person, state, now = new Date(), cache, cate
   const isFirstEverRun = Object.keys(state.initialized ?? {}).length === 0;
   const messages = [];
 
-  let nextState = state;
+  // Categoriile dezactivate nu se mai citesc, deci le uitam din state: la reactivare, prima citire
+  // e un baseline silentios, nu o comparatie cu date vechi (alerte "record" false). Se face si
+  // cand nu s-a citit nimic, ca state-ul sa reflecte mereu setarile curente.
+  const toFetchKeys = new Set(toFetch.map((c) => c.key));
+  let nextState = forgetCategories(
+    state,
+    CATEGORIES.filter((c) => !toFetchKeys.has(c.key)).map((c) => c.key),
+  );
   if (categoryResults.length > 0) {
-    const { earlierDays, newLaterDays, nextState: computedState } = computeDiff(state, categoryResults);
+    const { earlierDays, newLaterDays, nextState: computedState } = computeDiff(nextState, categoryResults);
     nextState = computedState;
     // Implicit, doar zilele MAI DEVREME decat minimul precedent declanseaza o alerta. Zilele noi
     // dar mai tarzii (`newLaterDays` din computeDiff) nu sunt trimise: nu ajuta pe nimeni sa se

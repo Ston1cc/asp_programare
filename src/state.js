@@ -59,6 +59,26 @@ function slotKey(categoryKey, date) {
  * alerta "record" pentru fiecare categorie, ceea ce n-are sens (nu exista fata de ce
  * sa fie "mai devreme") si ar dubla tot continutul heartbeat-ului din aceeasi zi.
  */
+/**
+ * Scoate complet din state categoriile pe care userul nu le (mai) urmareste (/setari): minimul,
+ * zilele si marcajul `initialized`. La reactivare, prima citire redevine un baseline silentios
+ * -- altfel s-ar compara cu un state invechit si ar aparea alerte "record" false. NU se aplica
+ * categoriilor citite fara succes in aceasta rulare (esec izolat / 429): acelea isi pastreaza
+ * state-ul, vezi computeDiff.
+ */
+export function forgetCategories(state, categoryKeys) {
+  if (categoryKeys.length === 0) return state;
+  const drop = new Set(categoryKeys);
+  const earliest = { ...state.earliest };
+  const initialized = { ...state.initialized };
+  for (const key of drop) {
+    delete earliest[key];
+    delete initialized[key];
+  }
+  const slots = Object.fromEntries(Object.entries(state.slots).filter(([key]) => !drop.has(key.split('|')[0])));
+  return { ...state, earliest, initialized, slots };
+}
+
 export function computeDiff(state, categoryResults) {
   // Categoriile care NU au fost citite in aceasta rulare (esec izolat, sau oprite de un 429
   // la mijloc) isi pastreaza slot-urile -- altfel la urmatoarea citire reusita fiecare zi ar

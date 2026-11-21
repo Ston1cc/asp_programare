@@ -5,13 +5,13 @@
 // cheia de criptare a datelor lor sa nu trebuiasca copiata in GitHub.
 
 import { fileURLToPath } from 'node:url';
-import { CATEGORIES, VERCEL_BASE_URL, loadConfig } from './config.js';
+import { VERCEL_BASE_URL, loadConfig } from './config.js';
 import { loadState, saveState } from './state.js';
 import { buildBackupSwitchMessage, buildFailureMessage, buildRateLimitMessage } from './format.js';
 import { fetchCategoryDates, RateLimitError } from './asp.js';
 import { sendTelegramMessage, BOOKING_KEYBOARD } from './telegram.js';
 import { checkPerson } from './check.js';
-import { DEFAULT_PREFS, normalizePrefs } from './prefs.js';
+import { DEFAULT_PREFS, normalizePrefs, selectCategories } from './prefs.js';
 
 const STATE_PATH = fileURLToPath(new URL('../state/slots.json', import.meta.url));
 const FAILURE_THRESHOLD = 3;
@@ -105,7 +105,9 @@ async function runOwner(config, now, cache) {
   // nu spamam la fiecare rulare ulterioara cat timp problema persista. O rulare limitata de
   // ASP nu e un esec de citire (nu spune nimic despre structura site-ului) -- streak-ul
   // ramane neatins, iar utilizatorul primeste un mesaj dedicat, o singura data.
-  const allFailed = !rateLimit && errors.length === CATEGORIES.length;
+  // Categoriile citite sunt doar cele active din /setari, nu toate 8.
+  const selectedCount = selectCategories(prefs).length;
+  const allFailed = !rateLimit && selectedCount > 0 && errors.length === selectedCount;
   if (rateLimit) {
     messages.push(
       buildRateLimitMessage({
@@ -141,7 +143,7 @@ async function runOwner(config, now, cache) {
   await saveState(STATE_PATH, nextState);
 
   console.log(
-    `OK — ${categoryResults.length}/${CATEGORIES.length} categorii citite, ${messages.length} mesaje trimise, ${errors.length} erori, ` +
+    `OK — ${categoryResults.length}/${selectedCount} categorii citite, ${messages.length} mesaje trimise, ${errors.length} erori, ` +
       `${nextState.aspDaily.count} cereri ASP azi (UTC)` +
       (backup ? ` (+${nextState.aspDailyBackup.count} pe rezerva)` : '') +
       (rateLimit ? `, LIMITAT pana la ${rateLimit.until.toISOString()}.` : '.'),
