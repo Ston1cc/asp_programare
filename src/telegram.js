@@ -1,6 +1,7 @@
 // Client minimal Telegram Bot API -- fetch nativ, zero dependente.
 
 import { splitMessage } from './format.js';
+import { ASP_BOOKING_URL } from './config.js';
 
 // Tastaturi persistente (reply keyboard, NU inline) atasate la mesajele trimise de bot --
 // userul apasa un buton in loc sa scrie manual comanda. Textul butonului trebuie sa fie
@@ -36,6 +37,13 @@ export const REGISTER_KEYBOARD = {
   keyboard: [[{ text: '/inregistrare' }, { text: '/help' }]],
   resize_keyboard: true,
   is_persistent: true,
+};
+
+// Buton INLINE cu link direct la pagina de programare ASP -- atasat alertelor/rezumatelor cu
+// date (nu si mesajelor de limita/eroare, unde n-ar ajuta). Tastatura persistenta de mai sus
+// ramane in chat: un reply_markup inline pe un mesaj nu o inlocuieste.
+export const BOOKING_KEYBOARD = {
+  inline_keyboard: [[{ text: '🗓 Programează-te pe ASP', url: ASP_BOOKING_URL }]],
 };
 
 /** Apel generic la Telegram Bot API -- restul functiilor din fisier sunt construite pe el. */

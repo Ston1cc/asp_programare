@@ -4,6 +4,10 @@
 
 export const API_BASE = 'https://eservicii.gov.md/asp/dimtcca/api';
 
+// Pagina de programare (aplicatia Blazor al carei backend e API_BASE) -- tinta butonului
+// "Programează-te" de pe alertele cu date (BOOKING_KEYBOARD in telegram.js).
+export const ASP_BOOKING_URL = 'https://eservicii.gov.md/asp/dimtcca';
+
 // Functiile Vercel pe care CI-ul le apeleaza cu `NOTIFY_SECRET` (api/owner-prefs.js,
 // api/notify-guests.js) -- singurul loc unde setarile si invitatii (Redis) sunt accesibili.
 export const VERCEL_BASE_URL = 'https://asp-programare-webhook.vercel.app';

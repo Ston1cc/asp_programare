@@ -11,7 +11,7 @@ import { checkPerson } from './check.js';
 import { EMPTY_STATE } from './state.js';
 import { normalizePrefs } from './prefs.js';
 import { buildRateLimitMessage, escapeMarkdownV2 } from './format.js';
-import { sendTelegramMessage, REGISTERED_KEYBOARD } from './telegram.js';
+import { sendTelegramMessage, REGISTERED_KEYBOARD, BOOKING_KEYBOARD } from './telegram.js';
 
 // Optiunea de oprire trebuie sa fie vizibila in FIECARE mesaj automat, nu doar la inceput.
 const OPT_OUT_FOOTER = `🔕 ${escapeMarkdownV2('Nu mai vrei notificări automate? Apasă /notificari')}`;
@@ -48,7 +48,9 @@ async function runGuest({ store, telegram, guest, now, cache }) {
 
   for (let i = 0; i < messages.length; i++) {
     const footer = i === 0 && result.isFirstEverRun ? FIRST_RUN_FOOTER : OPT_OUT_FOOTER;
-    await sendTelegramMessage({ botToken: telegram.botToken, chatId }, withFooter(messages[i], footer), REGISTERED_KEYBOARD);
+    // Butonul de programare doar pe mesajele cu date, nu pe cel de limita ASP.
+    const markup = result.messages.includes(messages[i]) ? BOOKING_KEYBOARD : REGISTERED_KEYBOARD;
+    await sendTelegramMessage({ botToken: telegram.botToken, chatId }, withFooter(messages[i], footer), markup);
   }
 
   // Salvat DUPA trimitere: daca Telegram a refuzat (eroare trecatoare), state-ul vechi ramane

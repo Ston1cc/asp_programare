@@ -9,7 +9,7 @@ import { CATEGORIES, VERCEL_BASE_URL, loadConfig } from './config.js';
 import { loadState, saveState } from './state.js';
 import { buildBackupSwitchMessage, buildFailureMessage, buildRateLimitMessage } from './format.js';
 import { fetchCategoryDates, RateLimitError } from './asp.js';
-import { sendTelegramMessage } from './telegram.js';
+import { sendTelegramMessage, BOOKING_KEYBOARD } from './telegram.js';
 import { checkPerson } from './check.js';
 import { DEFAULT_PREFS, normalizePrefs } from './prefs.js';
 
@@ -133,7 +133,9 @@ async function runOwner(config, now, cache) {
   nextState.lastRun = now.toISOString();
 
   for (const msg of messages) {
-    await sendTelegramMessage(config.telegram, msg);
+    // Doar mesajele cu date (alerta/rezumat) primesc butonul de programare; fara markup
+    // explicit, sendTelegramMessage pastreaza tastatura implicita (ACUM_KEYBOARD).
+    await sendTelegramMessage(config.telegram, msg, dataMessages.includes(msg) ? BOOKING_KEYBOARD : undefined);
   }
 
   await saveState(STATE_PATH, nextState);

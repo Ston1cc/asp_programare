@@ -246,6 +246,11 @@ because they have fundamentally different latency requirements.
   approve/deny keyboard, explicitly depending on chat state. `sendTelegramMessage`
   returns the last sent message (needed to capture the access-request notification's
   `message_id`, later passed to `editMessageText` once the owner decides).
+- **Booking button:** every automatic *data* message (alert + summary, owner in `src/index.js`, guests in
+  `src/guests.js`) carries `BOOKING_KEYBOARD` (`telegram.js`), an inline URL button to `ASP_BOOKING_URL`
+  (`config.js`, the Blazor booking app at `eservicii.gov.md/asp/dimtcca`; no per-exam deep link, the app is
+  a WASM SPA). Rate-limit / failure / backup-switch messages don't get it. An inline `reply_markup` doesn't
+  remove the persistent reply keyboard already in the chat.
 - **`src/registration.js`** + **`src/userStore.js`** — let people other than the bot's
   owner use it too, *in their own name* (own IDNP/doc series/issue date), not the
   owner's, but **only once the owner has approved that chat** (see
