@@ -21,6 +21,21 @@ const FIRST_RUN_FOOTER =
       'Le poți opri oricând cu /notificari (/acum merge în continuare).',
   )}`;
 
+// Invitatii se verifica la cel putin 65 min (cadenta de dinainte), indiferent cat de des ruleaza
+// bucla din CI (10 min pentru proprietar): fiecare invitat are cota lui ASP (~181-200 cereri/zi),
+// iar cu toate cele 8 categorii active la 10 min ar fi 1152 cereri/zi si si-ar epuiza-o la
+// prinz. Toleranta de 1 min: iteratiile CI au jitter de cateva secunde, fara ea un invitat la
+// 64:58 min ar astepta inca o iteratie. Cum bucla bate din 10 in 10 min, cadenta efectiva e ~70.
+export const GUEST_MIN_INTERVAL_MS = 65 * 60 * 1000;
+const GUEST_INTERVAL_TOLERANCE_MS = 60 * 1000;
+
+/** True daca invitatul n-a mai fost verificat de destul timp (sau niciodata). */
+export function guestDueForCheck(state, now) {
+  const last = state?.lastRun ? Date.parse(state.lastRun) : NaN;
+  if (Number.isNaN(last)) return true;
+  return now.getTime() - last >= GUEST_MIN_INTERVAL_MS - GUEST_INTERVAL_TOLERANCE_MS;
+}
+
 function withFooter(message, footer) {
   return `${message}\n\n${footer}`;
 }
@@ -34,6 +49,7 @@ async function runGuest({ store, telegram, guest, now, cache }) {
   if (await store.getAspBlock(person.idnp)) return 'skipped'; // cota ASP a lui e epuizata
 
   const state = { ...EMPTY_STATE(), ...((await store.getGuestState(chatId)) ?? {}) };
+  if (!guestDueForCheck(state, now)) return 'skipped'; // verificat acum mai putin de ~65 min
   const prefs = normalizePrefs(await store.getPrefs(chatId));
   const result = await checkPerson({ person, state, now, cache, prefs });
 
