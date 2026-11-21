@@ -12,6 +12,7 @@ import { fetchCategoryDates, RateLimitError } from './asp.js';
 import { sendTelegramMessage, BOOKING_KEYBOARD } from './telegram.js';
 import { checkPerson } from './check.js';
 import { DEFAULT_PREFS, normalizePrefs, selectCategories } from './prefs.js';
+import { BUDGET_PER_IDNP, MAX_INTERVAL_SECONDS, computeSchedule, intervalFor, recordOpenings } from './stats.js';
 
 const STATE_PATH = fileURLToPath(new URL('../state/slots.json', import.meta.url));
 const FAILURE_THRESHOLD = 3;
@@ -133,6 +134,33 @@ async function runOwner(config, now, cache) {
   nextState.rateLimitedUntil = primary.blockedUntil ? primary.blockedUntil.toISOString() : null;
   nextState.backupRateLimitedUntil = backup?.blockedUntil ? backup.blockedUntil.toISOString() : null;
   nextState.lastRun = now.toISOString();
+
+  // --- Statistici + cadenta adaptiva (src/stats.js) ---
+  // Numaram cand apar zilele noi si, odata adunate destule date, verificam mai des in orele active
+  // si mai rar in rest, in acelasi buget zilnic de cereri ASP. `nextIntervalSeconds` il citeste
+  // scripts/ci-loop.sh; null = cadenta fixa (INTERVAL_SECONDS). ADAPTIVE_CADENCE=off o dezactiveaza.
+  nextState.stats = recordOpenings(
+    state.stats,
+    result.events,
+    categoryResults.map((cr) => cr.category.key),
+    now,
+  );
+  if (process.env.ADAPTIVE_CADENCE === 'off') {
+    nextState.schedule = null;
+    nextState.nextIntervalSeconds = null;
+  } else {
+    const budget = Number(process.env.ASP_DAILY_BUDGET) || BUDGET_PER_IDNP * identities.length;
+    const schedule = computeSchedule({ stats: nextState.stats, budget, categoriesPerRun: selectedCount });
+    const usedToday = nextState.aspDaily.count + nextState.aspDailyBackup.count;
+    nextState.schedule = schedule;
+    // Bugetul zilei consumat deja -> incetinim la maximum pana la resetul de la 00:00 UTC.
+    nextState.nextIntervalSeconds = usedToday >= budget ? MAX_INTERVAL_SECONDS : intervalFor(schedule, now);
+    console.log(
+      schedule.active
+        ? `cadenta adaptiva: urmatoarea verificare in ~${nextState.nextIntervalSeconds}s (buget ${budget} cereri/zi, ${schedule.samples} deschideri observate).`
+        : `cadenta fixa: adun date pentru orarul adaptiv (${schedule.samples} deschideri observate).`,
+    );
+  }
 
   for (const msg of messages) {
     // Doar mesajele cu date (alerta/rezumat) primesc butonul de programare; fara markup

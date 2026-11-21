@@ -65,6 +65,10 @@ jobs:
           NOTIFY_SECRET: ${{ secrets.NOTIFY_SECRET }}
           LOOP_MINUTES: ${{ github.event.inputs.loop_minutes || '320' }}
           INTERVAL_SECONDS: ${{ github.event.inputs.interval_seconds || '600' }}
+          # Cadenta adaptiva (src/stats.js): variabile GitHub optionale. ADAPTIVE_CADENCE=off o opreste;
+          # ASP_DAILY_BUDGET = cereri ASP/zi disponibile (gol = 160 pe IDNP configurat).
+          ADAPTIVE_CADENCE: ${{ vars.ADAPTIVE_CADENCE }}
+          ASP_DAILY_BUDGET: ${{ vars.ASP_DAILY_BUDGET }}
         run: bash scripts/ci-loop.sh
 
       # Continua lantul si daca ultima verificare a iesit cu cod 1 (failure), dar NU la anulare

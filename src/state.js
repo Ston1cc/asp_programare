@@ -20,6 +20,11 @@ export const EMPTY_STATE = () => ({
   // Aceleasi doua campuri, pentru identitatea de rezerva (ASP_IDNP_2) -- cota ei e separata.
   backupRateLimitedUntil: null,
   aspDailyBackup: { date: null, count: 0 },
+  // Statistici despre cand apar locurile si programul de verificari derivat din ele -- vezi
+  // src/stats.js. `nextIntervalSeconds` e citit de scripts/ci-loop.sh (null = cadenta fixa).
+  stats: null,
+  schedule: null,
+  nextIntervalSeconds: null,
 });
 
 export async function loadState(path) {

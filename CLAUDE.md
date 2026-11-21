@@ -30,7 +30,7 @@ because they have fundamentally different latency requirements.
 - **`src/index.js`** — periodic checker, run every **10 min** by
   `.github/workflows/check.yml` on GitHub Actions via a **self-chaining loop**
   (`scripts/ci-loop.sh`): one job loops `node src/index.js` + `POST /api/notify-guests` every
-  `INTERVAL_SECONDS` (600) for `LOOP_MINUTES` (320), then its last step runs `gh workflow run
+  `INTERVAL_SECONDS` (600, or the adaptive `nextIntervalSeconds`, see below) for `LOOP_MINUTES` (320), then its last step runs `gh workflow run
   check.yml` (`workflow_dispatch` from `GITHUB_TOKEN` is allowed; needs `actions: write`). GitHub's
   own `schedule` is *not* the cadence: it fired only 4–6×/day even at hourly (measured
   29.09–17.10.2026), so the `30 * * * *` cron is only the restart if the chain breaks. The
@@ -256,6 +256,27 @@ because they have fundamentally different latency requirements.
   approve/deny keyboard, explicitly depending on chat state. `sendTelegramMessage`
   returns the last sent message (needed to capture the access-request notification's
   `message_id`, later passed to `editMessageText` once the owner decides).
+- **Statistics + adaptive cadence (`src/stats.js`, added 21.11.2026):** every owner run records *when new
+  days open* into `state.stats` (committed with `state/slots.json`, so it survives across CI jobs): per exam
+  type, `hour[24]` (Europe/Chisinau) and `dow[7]` counters, `openings` (runs in which ≥1 new day appeared for
+  that type) and `days` (new days). `checkPerson` now also returns the raw `events` (`earlierDays`,
+  `newLaterDays` before prefs filtering) for this; the silent baseline of a first/re-enabled category
+  produces no events. Once ≥ `MIN_SAMPLES` (20) openings are known, `computeSchedule` turns the hourly
+  histogram into a per-hour check interval: runs/day = budget / categories-per-run, split across hours
+  proportionally to (smoothed) openings, clamped to [3 min, 30 min] with the surplus redistributed, and a
+  hard cap of 7200 s (`HARD_MAX_INTERVAL_SECONDS` — `scripts/ci-loop.sh` ignores larger values and would fall
+  back to the *faster* fixed interval). Budget = `ASP_DAILY_BUDGET` or `BUDGET_PER_IDNP` (160, under the
+  observed ~181–200 quota) × configured identities. `src/index.js` stores `state.nextIntervalSeconds` (and
+  `state.schedule` for `/statistici`); `ci-loop.sh` reads it after each run instead of the fixed
+  `INTERVAL_SECONDS` (also for the first wait of a new job). It falls back to the fixed interval when there
+  is not enough data, with `ADAPTIVE_CADENCE=off`, or on any invalid value; once the day's quota budget is
+  used up it slows to 30 min until 00:00 UTC. If the budget can't afford even one run per 30 min (e.g. all 8
+  categories on one IDNP) the cold-hour intervals exceed 30 min — that is the budget talking. Detection
+  hour is only as precise as the cadence, and a day that vanishes and reappears counts as an opening, so
+  the histogram is approximate by nature. The owner reads it with `/statistici` (`buildStatsMessage` over
+  `status:owner`, which `api/notify-guests.js` fills from the CI POST via `sanitizeStats` /
+  `sanitizeSchedule`); `/status` shows the current cadence and its stale-run warning threshold follows the
+  interval (`2.5 ×`, min 35 min). Guests are unaffected: they keep their own ≥65 min throttle.
 - **Booking button:** every automatic *data* message (alert + summary, owner in `src/index.js`, guests in
   `src/guests.js`) carries `BOOKING_KEYBOARD` (`telegram.js`), an inline URL button to `ASP_BOOKING_URL`
   (`config.js`, the Blazor booking app at `eservicii.gov.md/asp/dimtcca`; no per-exam deep link, the app is

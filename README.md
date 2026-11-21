@@ -38,6 +38,7 @@ când contează: **când poți programa mai devreme decât înainte**.
 | `/notificari` | invitați | pornește/oprește alertele automate |
 | `/sterge` | invitați | șterge datele salvate (cu confirmare) |
 | `/status` | proprietar | starea checker-ului, cererile ASP de azi, invitații |
+| `/statistici` | proprietar | când apar de obicei locurile (pe ore și zile) + cadența adaptivă |
 | `/utilizatori`, `/cereri` | proprietar | persoanele aprobate / toate cererile de acces |
 | `/revoca <chat_id>` | proprietar | retrage accesul și șterge datele unei persoane |
 
@@ -84,6 +85,14 @@ cerere pentru acel IDNP până la resetare. Fiecare utilizator are propria cotă
 `ASP_DOC_ISSUE_DATE_2` (în `.env` și ca secrete GitHub). Când IDNP-ul principal primește 429,
 verificările continuă pe cel de rezervă, cu cota lui; botul te anunță o singură dată. Pauza
 completă începe doar când ambele sunt limitate.
+
+## Statistici și cadență adaptivă
+
+Botul numără când apar zilele noi (pe ora locală și pe ziua săptămânii, separat pentru teoretic și
+practic) și le arată cu `/statistici`. După ~20 de deschideri observate, verificările devin **adaptive**:
+mai dese (până la 3 minute) în orele în care apar de obicei locuri, mai rare (până la 30 de minute) în
+rest, în același buget zilnic de cereri ASP (160 pe IDNP configurat, sau `ASP_DAILY_BUDGET`). Până atunci
+rămâne cadența fixă de 10 minute. O oprești cu variabila GitHub `ADAPTIVE_CADENCE=off`.
 
 ## Confidențialitate și securitate
 
@@ -168,6 +177,7 @@ src/
 ├─ format.js        mesajele Telegram (MarkdownV2) și utilitarele de dată
 ├─ prefs.js         /setari
 ├─ status.js        /status
+├─ stats.js         statistici despre când apar locurile + cadența adaptivă
 ├─ registration.js  înregistrarea invitaților și textele de acces
 ├─ userStore.js     Redis: date criptate, acces, setări, limite
 ├─ telegram.js      clientul Telegram Bot API și tastaturile

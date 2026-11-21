@@ -6,6 +6,7 @@
 import { loadConfig } from '../src/config.js';
 import { runGuests } from '../src/guests.js';
 import { isValidSecret } from '../src/secret.js';
+import { sanitizeStats, sanitizeSchedule } from '../src/stats.js';
 import { tryAcquireGuestRunLock, releaseGuestRunLock, setStatus } from '../src/userStore.js';
 
 // CI trimite aici state/slots.json al proprietarului; pastram doar campurile de care are
@@ -17,6 +18,10 @@ function pickOwnerStatus(body) {
     lastHeartbeatDate: typeof body.lastHeartbeatDate === 'string' ? body.lastHeartbeatDate : null,
     rateLimitedUntil: typeof body.rateLimitedUntil === 'string' ? body.rateLimitedUntil : null,
     consecutiveFailures: Number.isFinite(body.consecutiveFailures) ? body.consecutiveFailures : 0,
+    // Statistici + programul adaptiv (src/stats.js), pentru /statistici si /status.
+    stats: sanitizeStats(body.stats),
+    schedule: sanitizeSchedule(body.schedule),
+    nextIntervalSeconds: Number.isFinite(body.nextIntervalSeconds) ? body.nextIntervalSeconds : null,
     aspDaily:
       body.aspDaily && typeof body.aspDaily === 'object'
         ? { date: String(body.aspDaily.date ?? ''), count: Number(body.aspDaily.count) || 0 }

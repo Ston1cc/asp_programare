@@ -18,6 +18,7 @@ export const REVOKE_COMMAND = '/revoca';
 export const LIST_REQUESTS_COMMAND = '/cereri';
 export const NOTIFY_COMMAND = '/notificari';
 export const STATUS_COMMAND = '/status';
+export const STATS_COMMAND = '/statistici';
 
 // /sterge cere confirmare: e un buton din tastatura, un tap gresit nu trebuie sa stearga datele.
 export const DELETE_CONFIRM_PROMPT = `🗑️ ${escapeMarkdownV2(
@@ -228,6 +229,7 @@ export function buildHelpMessage({ isOwner, hasPerson, needsApproval }) {
   if (isOwner) {
     lines.push(cmdLine('/acum', 'verifică live cele mai apropiate date la examen'));
     lines.push(cmdLine('/status', 'starea checker-ului, limita ASP și invitații'));
+    lines.push(cmdLine('/statistici', 'când apar de obicei locurile + cadența adaptivă'));
     lines.push(cmdLine('/setari', 'alege ce categorii/filiale/dată-țintă apar la /acum și în alerte'));
     lines.push(cmdLine('/utilizatori', 'listează persoanele cu acces aprobat'));
     lines.push(cmdLine('/cereri', 'listează toate cererile de acces (în așteptare + decise)'));

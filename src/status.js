@@ -56,8 +56,13 @@ export function buildStatusMessage({ now = new Date(), owner, guests, counts, ow
     const last = new Date(owner.lastRun);
     const age = now.getTime() - last.getTime();
     lines.push(line('⏱', `Checker: ultima rulare ${hhmm(last)} (${agoLabel(age)})`));
-    if (age > STALE_AFTER_MS) {
-      lines.push(line('⚠️', 'Nu a mai rulat de peste 35 de minute (ar trebui la 10 min) — verifică tab-ul Actions din GitHub: lanțul de joburi s-a putut rupe.'));
+    // Cu cadenta adaptiva intervalul poate ajunge la 30 min: pragul urmeaza intervalul curent.
+    const staleAfter = Math.max(STALE_AFTER_MS, (owner.nextIntervalSeconds ?? 0) * 1000 * 2.5);
+    if (age > staleAfter) {
+      lines.push(line('⚠️', `Nu a mai rulat de peste ${Math.round(staleAfter / 60000)} de minute — verifică tab-ul Actions din GitHub: lanțul de joburi s-a putut rupe.`));
+    }
+    if (owner.nextIntervalSeconds) {
+      lines.push(line('⏲', `Cadență: la ~${Math.round(owner.nextIntervalSeconds / 60)} min între verificări${owner.schedule?.active ? ' (adaptivă, vezi /statistici)' : ''}`));
     }
     const count = owner.aspDaily?.count ?? 0;
     lines.push(line('🔌', `Cereri ASP azi (UTC): ${count}`));

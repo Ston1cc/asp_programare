@@ -18,7 +18,10 @@ import { ASP_BOOKING_URL } from './config.js';
 //   REGISTERED_KEYBOARD -- alta persoana care si-a salvat deja datele
 //   REGISTER_KEYBOARD   -- alta persoana necunoscuta botului
 export const ACUM_KEYBOARD = {
-  keyboard: [[{ text: '/acum' }, { text: '/status' }], [{ text: '/setari' }, { text: '/cereri' }, { text: '/help' }]],
+  keyboard: [
+    [{ text: '/acum' }, { text: '/status' }, { text: '/statistici' }],
+    [{ text: '/setari' }, { text: '/cereri' }, { text: '/help' }],
+  ],
   resize_keyboard: true,
   is_persistent: true,
 };

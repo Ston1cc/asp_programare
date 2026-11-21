@@ -72,9 +72,12 @@ export async function checkPerson({ person, state, now = new Date(), cache, cate
     state,
     CATEGORIES.filter((c) => !toFetchKeys.has(c.key)).map((c) => c.key),
   );
+  // Evenimentele brute din diff (inainte de filtrarea dupa preferinte) -- pentru statistici (stats.js).
+  let events = { earlierDays: [], newLaterDays: [] };
   if (categoryResults.length > 0) {
     const { earlierDays, newLaterDays, nextState: computedState } = computeDiff(nextState, categoryResults);
     nextState = computedState;
+    events = { earlierDays, newLaterDays };
     // Implicit, doar zilele MAI DEVREME decat minimul precedent declanseaza o alerta. Zilele noi
     // dar mai tarzii (`newLaterDays` din computeDiff) nu sunt trimise: nu ajuta pe nimeni sa se
     // programeze mai repede si erau doar zgomot. computeDiff le calculeaza oricum, ca sa isi
@@ -108,5 +111,5 @@ export async function checkPerson({ person, state, now = new Date(), cache, cate
     messages.push(buildHeartbeatMessage({ categoryResults: shownResults, now, title: 'Monitor pornit — prima citire' }));
   }
 
-  return { nextState, messages, categoryResults, errors, rateLimit, attempted, isFirstEverRun };
+  return { nextState, messages, categoryResults, errors, rateLimit, attempted, isFirstEverRun, events };
 }

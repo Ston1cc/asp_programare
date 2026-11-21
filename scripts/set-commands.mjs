@@ -23,6 +23,7 @@ const ALL_COMMANDS = [
 const OWNER_COMMANDS = [
   { command: 'acum', description: 'Verifică live cele mai apropiate date la examen' },
   { command: 'status', description: 'Starea checker-ului, limita ASP și invitații' },
+  { command: 'statistici', description: 'Când apar de obicei locurile + cadența adaptivă' },
   { command: 'setari', description: 'Alege ce categorii/filiale/dată-țintă apar la /acum și în alerte' },
   { command: 'utilizatori', description: 'Listează persoanele cu acces aprobat' },
   { command: 'cereri', description: 'Listează toate cererile de acces' },

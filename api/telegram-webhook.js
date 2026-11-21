@@ -39,6 +39,7 @@ import {
   buildSettingsSummary,
 } from '../src/prefs.js';
 import { buildStatusMessage } from '../src/status.js';
+import { buildStatsMessage } from '../src/stats.js';
 import {
   REGISTER_COMMANDS,
   DELETE_COMMAND,
@@ -47,6 +48,7 @@ import {
   DELETE_DONE_MESSAGE,
   DELETE_CANCELLED_MESSAGE,
   STATUS_COMMAND,
+  STATS_COMMAND,
   HELP_COMMAND,
   NOTIFY_COMMAND,
   NOTIFY_ON_MESSAGE,
@@ -270,6 +272,22 @@ async function handleOwnerMessage(cfg, rawText, text) {
 
   if (text === HELP_COMMAND) {
     await replyTo(botToken, chatId, buildHelpMessage({ isOwner: true }), ACUM_KEYBOARD);
+    return;
+  }
+
+  if (text === STATS_COMMAND) {
+    try {
+      const owner = await getStatus('owner');
+      await replyTo(
+        botToken,
+        chatId,
+        buildStatsMessage({ stats: owner?.stats, schedule: owner?.schedule, nextIntervalSeconds: owner?.nextIntervalSeconds }),
+        ACUM_KEYBOARD,
+      );
+    } catch (err) {
+      console.error('Eroare la /statistici:', err.message);
+      await replyTo(botToken, chatId, UNAVAILABLE_MESSAGE, ACUM_KEYBOARD);
+    }
     return;
   }
 
