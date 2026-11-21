@@ -119,6 +119,10 @@ because they have fundamentally different latency requirements.
   NOTIFY_SECRET` (a fresh secret set in both Vercel and GitHub; constant-time compare via
   `src/secret.js`). The key never leaves Vercel and `index.js` stays zero-dependency. A
   Redis lock (`checker:guests:lock`, 150s TTL) stops two overlapping runs from double-sending.
+  **Guests are throttled to ≥65 min** (`guestDueForCheck`, `GUEST_MIN_INTERVAL_MS` in `guests.js`, 1 min jitter
+  tolerance, from the guest state's `lastRun`) although the CI loop — and the owner — run every 10 min: each guest
+  has their own ~181–200 requests/day quota, and 8 categories × 144 runs would exhaust it by midday. The loop
+  steps in 10-min strides, so the effective guest cadence is ~70 min.
   **The opt-out must stay visible:** every automatic guest message ends with "Nu mai vrei
   notificări automate? Apasă /notificari" (`OPT_OUT_FOOTER`; the very first message uses
   `FIRST_RUN_FOOTER`, which explains what they'll receive), the registration-complete
