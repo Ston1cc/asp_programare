@@ -16,6 +16,14 @@ export const SETTINGS_COMMAND = '/setari';
 // dar aceeasi cheie `pending:<chatId>`.
 export const PREF_BEFORE_PROMPT = `📅 ${escapeMarkdownV2('Scrie o dată țintă (DD.MM.YYYY), sau 0 ca să o ștergi.')}`;
 
+// La fel, pentru "Ultimul examen": `pending: { step: 'prefLastExam' }`.
+export const PREF_LAST_EXAM_PROMPT = `🗓 ${escapeMarkdownV2('Scrie data ultimului examen susținut (DD.MM.YYYY), sau 0 ca să o ștergi.')}`;
+
+// Dupa un examen picat, urmatoarea incercare se poate da abia peste atatea zile. Pragul e per tip
+// de examen, deci un singur camp "De la" nu ajunge -- din data ultimului examen se calculeaza
+// prima data rezervabila pentru fiecare tip. Schimba aici daca regula ASP se modifica.
+export const MIN_GAP_DAYS = { teoretic: 5, practic: 10 };
+
 export const DEFAULT_PREFS = {
   teoretic: true,
   practic: true,
@@ -23,9 +31,31 @@ export const DEFAULT_PREFS = {
   urgent: true,
   locations: { radautanu: true, ieasilor: true, salcamilor: true },
   before: null, // "YYYY-MM-DD" sau null
+  lastExam: null, // "YYYY-MM-DD" sau null -- data ultimului examen; vezi MIN_GAP_DAYS
 };
 
 const LOCATION_KEYS = Object.keys(DEFAULT_PREFS.locations);
+
+function isoDateOrNull(v) {
+  return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+}
+
+/** "YYYY-MM-DD" + n zile (calendaristic, in UTC -- fara probleme de fus orar/DST). */
+export function addDays(dateStr, n) {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Prima data rezervabila pentru o categorie dupa `lastExam`, sau null daca nu e setat. */
+export function minDateFor(category, prefs) {
+  return prefs.lastExam ? addDays(prefs.lastExam, MIN_GAP_DAYS[category.examType]) : null;
+}
+
+/** Are userul vreo fereastra de date setata ("Pana la" si/sau "Ultimul examen")? */
+export function hasDateWindow(prefs) {
+  return Boolean(prefs.before || prefs.lastExam);
+}
 
 /** Completeaza un record posibil partial/vechi/corupt cu valorile implicite -- niciodata nu arunca. */
 export function normalizePrefs(raw) {
@@ -38,7 +68,8 @@ export function normalizePrefs(raw) {
     obisnuit: bool(r.obisnuit, DEFAULT_PREFS.obisnuit),
     urgent: bool(r.urgent, DEFAULT_PREFS.urgent),
     locations: Object.fromEntries(LOCATION_KEYS.map((k) => [k, bool(rLoc[k], DEFAULT_PREFS.locations[k])])),
-    before: typeof r.before === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.before) ? r.before : null,
+    before: isoDateOrNull(r.before),
+    lastExam: isoDateOrNull(r.lastExam),
   };
 }
 
@@ -61,26 +92,29 @@ export function selectCategories(prefs) {
   return CATEGORIES.filter((c) => categoryMatchesPrefs(c, prefs));
 }
 
-function withinBefore(dateStr, before) {
-  return !before || dateStr <= before;
+/** Data cade in fereastra userului: >= prima data rezervabila (dupa ultimul examen) si <= tinta. */
+function withinWindow(category, dateStr, prefs) {
+  const min = minDateFor(category, prefs);
+  if (min && dateStr < min) return false;
+  return !prefs.before || dateStr <= prefs.before;
 }
 
 /**
- * categoryResults deja citite, filtrate dupa preferinte (categorie + tinta de data) -- pentru
+ * categoryResults deja citite, filtrate dupa preferinte (categorie + fereastra de date) -- pentru
  * rezumat si /acum. O categorie ramane in lista chiar daca tinta ii elimina toate zilele
  * (apare ca "fara zile libere"), ca userul sa vada ca e urmarita.
  */
 export function filterCategoryResultsByPrefs(prefs, categoryResults) {
   return categoryResults
     .filter((cr) => categoryMatchesPrefs(cr.category, prefs))
-    .map((cr) => (prefs.before ? { ...cr, dates: cr.dates.filter((d) => withinBefore(d.date, prefs.before)) } : cr));
+    .map((cr) => (hasDateWindow(prefs) ? { ...cr, dates: cr.dates.filter((d) => withinWindow(cr.category, d.date, prefs)) } : cr));
 }
 
 /** earlierDays/newLaterDays (din computeDiff) filtrate dupa categorie + tinta de data. */
 export function applyPrefsToEvents(prefs, { earlierDays, newLaterDays }) {
   return {
-    earlierDays: earlierDays.filter((e) => categoryMatchesPrefs(e.category, prefs) && withinBefore(e.newDate, prefs.before)),
-    newLaterDays: newLaterDays.filter((e) => categoryMatchesPrefs(e.category, prefs) && withinBefore(e.date, prefs.before)),
+    earlierDays: earlierDays.filter((e) => categoryMatchesPrefs(e.category, prefs) && withinWindow(e.category, e.newDate, prefs)),
+    newLaterDays: newLaterDays.filter((e) => categoryMatchesPrefs(e.category, prefs) && withinWindow(e.category, e.date, prefs)),
   };
 }
 
@@ -100,10 +134,13 @@ export function togglePref(prefs, path) {
   return prefs;
 }
 
-/** Raspunsul la promptul "Pana la": "0"/"sterge" sterge tinta, altfel DD.MM.YYYY sau YYYY-MM-DD. */
-export function parsePrefBeforeInput(text) {
+/**
+ * Raspunsul la promptul "Pana la" / "Ultimul examen": "0"/"sterge" sterge valoarea, altfel
+ * DD.MM.YYYY sau YYYY-MM-DD. Intoarce { ok, date } (date = "YYYY-MM-DD" sau null).
+ */
+export function parsePrefDateInput(text) {
   const v = text.trim();
-  if (v === '0' || /^(sterge|șterge|clear)$/i.test(v)) return { ok: true, before: null };
+  if (v === '0' || /^(sterge|șterge|clear)$/i.test(v)) return { ok: true, date: null };
 
   let year, month, day;
   const iso = v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -119,7 +156,7 @@ export function parsePrefBeforeInput(text) {
   const valid =
     date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d && y >= 2024 && y <= 2100;
   if (!valid) return { ok: false };
-  return { ok: true, before: `${year}-${month}-${day}` };
+  return { ok: true, date: `${year}-${month}-${day}` };
 }
 
 function toggleLabel(on, label) {
@@ -148,6 +185,12 @@ export function buildSettingsKeyboard(prefs) {
           callback_data: 'pref:before',
         },
       ],
+      [
+        {
+          text: prefs.lastExam ? `🗓 Ultimul examen: ${formatDateHuman(prefs.lastExam)}` : '🗓 Ultimul examen: nesetat',
+          callback_data: 'pref:lastexam',
+        },
+      ],
     ],
   };
 }
@@ -156,13 +199,20 @@ export function buildSettingsSummary() {
   return [
     `⚙️ *${escapeMarkdownV2('Setările tale')}*`,
     '',
-    escapeMarkdownV2('Apasă un buton ca să pornești/oprești. Doar ce e ✅ apare la /acum și în alertele automate. Filialele se aplică doar la practic.'),
+    escapeMarkdownV2('Apasă un buton ca să pornești/oprești. Doar ce e ✅ apare la /acum și în alertele automate. Filialele se aplică doar la practic. Cu „Până la" și/sau „Ultimul examen" setat, primești alertă pentru orice loc nou eliberat în acea fereastră, nu doar pentru cele mai devreme. „Ultimul examen" ascunde datele pe care nu le poți rezerva încă (teoretic: 5 zile, practic: 10 zile după examen).'),
   ].join('\n');
 }
 
 /** Linie de context pentru /acum cand exista o tinta de data; '' altfel. */
 export function buildTargetNote(prefs) {
-  return prefs.before ? `🎯 ${escapeMarkdownV2(`Doar date până la ${formatDateHuman(prefs.before)}`)}` : '';
+  const lines = [];
+  if (prefs.lastExam) {
+    const t = formatDateHuman(addDays(prefs.lastExam, MIN_GAP_DAYS.teoretic));
+    const p = formatDateHuman(addDays(prefs.lastExam, MIN_GAP_DAYS.practic));
+    lines.push(`🗓 ${escapeMarkdownV2(`După examenul din ${formatDateHuman(prefs.lastExam)}: teoretic de la ${t}, practic de la ${p}`)}`);
+  }
+  if (prefs.before) lines.push(`🎯 ${escapeMarkdownV2(`Doar date până la ${formatDateHuman(prefs.before)}`)}`);
+  return lines.join('\n');
 }
 
 export const NO_CATEGORIES_MESSAGE = `⚠️ ${escapeMarkdownV2('Nu ai nicio categorie activă. Apasă /setari și alege ce vrei să urmărești.')}`;

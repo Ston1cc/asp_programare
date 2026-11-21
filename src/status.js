@@ -37,6 +37,7 @@ export function summarizePrefs(prefs) {
     if (prefs.locations[id] === false) off.push(`practic ${label}`);
   }
   const parts = [off.length === 0 ? 'toate categoriile active' : `oprit: ${off.join(', ')}`];
+  if (prefs.lastExam) parts.push(`ultimul examen ${formatDateHuman(prefs.lastExam)}`);
   if (prefs.before) parts.push(`doar până la ${formatDateHuman(prefs.before)}`);
   return parts.join(' · ');
 }

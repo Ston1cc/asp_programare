@@ -31,9 +31,10 @@ import { escapeMarkdownV2, buildAspBlockedMessage } from '../src/format.js';
 import {
   SETTINGS_COMMAND,
   PREF_BEFORE_PROMPT,
+  PREF_LAST_EXAM_PROMPT,
   normalizePrefs,
   togglePref,
-  parsePrefBeforeInput,
+  parsePrefDateInput,
   buildSettingsKeyboard,
   buildSettingsSummary,
 } from '../src/prefs.js';
@@ -195,17 +196,22 @@ async function sendSettings(botToken, chatId, errorKeyboard) {
   await replyTo(botToken, chatId, buildSettingsSummary(), buildSettingsKeyboard(prefs));
 }
 
+// Pasii `pending` care citesc o data din /setari -> campul din prefs pe care il seteaza.
+const PREF_DATE_STEPS = { prefBefore: 'before', prefLastExam: 'lastExam' };
+
 /**
- * Raspunsul la promptul "Pana la" (`pending.step === 'prefBefore'`). Intoarce true daca mesajul
- * a fost tratat aici; false daca era o comanda (`/...`) -- atunci cererea de tinta se anuleaza
- * si apelantul continua sa proceseze comanda normal, in loc s-o valideze ca pe o data.
+ * Raspunsul la promptul "Pana la" / "Ultimul examen" (`pending.step` din PREF_DATE_STEPS).
+ * Intoarce true daca mesajul a fost tratat aici; false daca era o comanda (`/...`) -- atunci
+ * cererea se anuleaza si apelantul continua sa proceseze comanda normal, in loc s-o valideze
+ * ca pe o data.
  */
-async function handlePrefBefore(botToken, chatId, rawText, keyboard) {
+async function handlePrefDate(botToken, chatId, step, rawText, keyboard) {
   if (rawText.startsWith('/')) {
     await clearPendingRegistration(chatId);
     return false;
   }
-  const result = parsePrefBeforeInput(rawText);
+  const field = PREF_DATE_STEPS[step];
+  const result = parsePrefDateInput(rawText);
   if (!result.ok) {
     await replyTo(
       botToken,
@@ -216,12 +222,13 @@ async function handlePrefBefore(botToken, chatId, rawText, keyboard) {
     return true;
   }
   const prefs = normalizePrefs(await getPrefs(chatId));
-  await setPrefs(chatId, { ...prefs, before: result.before });
+  await setPrefs(chatId, { ...prefs, [field]: result.date });
   await clearPendingRegistration(chatId);
+  const done = field === 'before' ? 'Ținta' : 'Data ultimului examen';
   await replyTo(
     botToken,
     chatId,
-    result.before ? escapeMarkdownV2('✅ Țintă setată. Vezi mai jos.') : escapeMarkdownV2('✅ Ținta a fost ștearsă.'),
+    escapeMarkdownV2(result.date ? `✅ ${done} a fost setată. Vezi mai jos.` : `✅ ${done} a fost ștearsă.`),
     keyboard,
   );
   await sendSettings(botToken, chatId, keyboard);
@@ -269,7 +276,7 @@ async function handleOwnerMessage(cfg, rawText, text) {
   } catch (err) {
     console.error('Eroare la citirea pending (owner):', err.message);
   }
-  if (pending?.step === 'prefBefore' && (await handlePrefBefore(botToken, chatId, rawText, ACUM_KEYBOARD))) {
+  if ((pending?.step ?? '') in PREF_DATE_STEPS && (await handlePrefDate(botToken, chatId, pending.step, rawText, ACUM_KEYBOARD))) {
     return;
   }
 
@@ -476,10 +483,10 @@ async function handleGuestMessage(cfg, message, rawText, text) {
   let pending = await getPendingRegistration(chatId);
   // "Pana la" din /setari foloseste aceeasi cheie `pending`, dar NU e un pas de inregistrare --
   // il tratam separat, altfel ar fi validat ca IDNP. O comanda scrisa in loc de raspuns anuleaza
-  // cererea (handlePrefBefore intoarce false) si trece mai departe ca o comanda obisnuita.
-  if (pending?.step === 'prefBefore') {
+  // cererea (handlePrefDate intoarce false) si trece mai departe ca o comanda obisnuita.
+  if ((pending?.step ?? '') in PREF_DATE_STEPS) {
     const person = await getPerson(chatId);
-    if (await handlePrefBefore(botToken, chatId, rawText, person ? REGISTERED_KEYBOARD : REGISTER_KEYBOARD)) return;
+    if (await handlePrefDate(botToken, chatId, pending.step, rawText, person ? REGISTERED_KEYBOARD : REGISTER_KEYBOARD)) return;
     pending = null;
   }
   if (pending) {
@@ -555,10 +562,15 @@ async function handlePrefCallback(cfg, cq, path) {
     return;
   }
 
-  if (path === 'before') {
-    await setPendingRegistration(fromId, { step: 'prefBefore' });
+  if (path === 'before' || path === 'lastexam') {
+    await setPendingRegistration(fromId, { step: path === 'before' ? 'prefBefore' : 'prefLastExam' });
     await answerCallbackQuery(botToken, cq.id, '');
-    await replyTo(botToken, fromId, PREF_BEFORE_PROMPT, isOwner ? ACUM_KEYBOARD : await guestKeyboardFor(fromId));
+    await replyTo(
+      botToken,
+      fromId,
+      path === 'before' ? PREF_BEFORE_PROMPT : PREF_LAST_EXAM_PROMPT,
+      isOwner ? ACUM_KEYBOARD : await guestKeyboardFor(fromId),
+    );
     return;
   }
 

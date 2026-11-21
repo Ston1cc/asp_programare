@@ -6,7 +6,7 @@
 import { CATEGORIES } from './config.js';
 import { fetchCategoryDates, RateLimitError } from './asp.js';
 import { computeDiff } from './state.js';
-import { DEFAULT_PREFS, applyPrefsToEvents, filterCategoryResultsByPrefs } from './prefs.js';
+import { DEFAULT_PREFS, applyPrefsToEvents, filterCategoryResultsByPrefs, hasDateWindow } from './prefs.js';
 import {
   filterCurrentAndNextMonth,
   buildAlertMessage,
@@ -63,13 +63,20 @@ export async function checkPerson({ person, state, now = new Date(), cache, cate
 
   let nextState = state;
   if (categoryResults.length > 0) {
-    const { earlierDays, nextState: computedState } = computeDiff(state, categoryResults);
+    const { earlierDays, newLaterDays, nextState: computedState } = computeDiff(state, categoryResults);
     nextState = computedState;
-    // Doar zilele MAI DEVREME decat minimul precedent declanseaza o alerta. Zilele noi dar mai
-    // tarzii (`newLaterDays` din computeDiff) nu mai sunt trimise: nu ajuta pe nimeni sa se
-    // programeze mai repede si, la cadenta de 15 min, erau doar zgomot. computeDiff le
-    // calculeaza in continuare, ca sa isi tina `slots` la zi.
-    const alertMsg = buildAlertMessage(applyPrefsToEvents(prefs, { earlierDays, newLaterDays: [] }));
+    // Implicit, doar zilele MAI DEVREME decat minimul precedent declanseaza o alerta. Zilele noi
+    // dar mai tarzii (`newLaterDays` din computeDiff) nu sunt trimise: nu ajuta pe nimeni sa se
+    // programeze mai repede si erau doar zgomot. computeDiff le calculeaza oricum, ca sa isi
+    // tina `slots` la zi.
+    // EXCEPTIE: cu o fereastra de date setata (/setari -> "Pana la" si/sau "Ultimul examen"),
+    // userul vrea ORICE loc nou eliberat in fereastra, nu doar recorduri -- un loc aparut pe
+    // 24.11 cand minimul e deja 20.11 nu e "mai devreme", dar e exact ce a cerut. Si invers:
+    // un "record" de pe 21.11 ar fi inutil daca prima data rezervabila e 24.11, iar zilele
+    // rezervabile de dupa el n-ar mai alerta niciodata. applyPrefsToEvents taie tot ce iese din
+    // fereastra (inainte de data minima sau dupa tinta).
+    const laterForAlert = hasDateWindow(prefs) ? newLaterDays : [];
+    const alertMsg = buildAlertMessage(applyPrefsToEvents(prefs, { earlierDays, newLaterDays: laterForAlert }));
     if (alertMsg) messages.push(alertMsg);
   }
 

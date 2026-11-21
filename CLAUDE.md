@@ -314,7 +314,15 @@ A new date is one of three things, each handled differently:
 2. It's new but later than the current earliest → **no alert any more** (changed
    17.10.2026: only "earlier than before" matters, and at a 15-min cadence the extra
    messages were noise). `computeDiff` still returns `newLaterDays` and still tracks them
-   in `slots`; `checkPerson` just passes `newLaterDays: []` to `buildAlertMessage`.
+   in `slots`; `checkPerson` passes `newLaterDays: []` to `buildAlertMessage` **unless the
+   chat has a date window** (`/setari` → "Până la" `prefs.before` and/or "Ultimul examen"
+   `prefs.lastExam`, see `hasDateWindow`): then every newly-freed day inside the window is alerted,
+   even if not a new record (`applyPrefsToEvents` cuts anything outside it). A slot that
+   disappears and reappears counts as new again. `lastExam` + `MIN_GAP_DAYS` (`prefs.js`:
+   teoretic 5 days, practic 10 — retake gap after an exam) gives a per-type earliest bookable date
+   (`minDateFor`); anything earlier is hidden from alerts, `/acum` and the summary. Both are
+   display-only like all prefs. The date prompts share `pending:<chatId>` steps `prefBefore` /
+   `prefLastExam`, handled by `handlePrefDate` in the webhook.
 3. A previously-seen date disappears → no alert, only reflected in the next heartbeat.
 
 This is intentional, not an oversight — this project is about surfacing "you can book
