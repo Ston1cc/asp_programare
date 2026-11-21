@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Bucla de verificare din CI: un singur job ruleaza `node src/index.js` + notificarile
-# invitatilor la fiecare INTERVAL_SECONDS (implicit 3900 = 65 min) timp de LOOP_MINUTES, apoi
+# invitatilor la fiecare INTERVAL_SECONDS (implicit 1800 = 30 min) timp de LOOP_MINUTES, apoi
 # iese (pasul urmator din workflow porneste succesorul). De ce nu `schedule`: GitHub il executa
 # doar de 4-6 ori pe zi chiar si setat mai des (masurat 29.09-17.10.2026).
 #
-# De ce 65 min: ASP limiteaza cererile pe IDNP, zilnic. 18.10.2026 limita a inceput sa respinga la
-# a 182-a cerere a zilei (181 acceptate), cu verificari la 15 min (768 cereri/zi). La 65 min sunt
+# De ce era 65 min (acum 30, la cererea proprietarului): ASP limiteaza cererile pe IDNP, zilnic. 18.10.2026 limita a inceput sa respinga la
+# a 182-a cerere a zilei (181 acceptate), cu verificari la 15 min (768 cereri/zi). La 65 min erau
 # 22 rulari x 8 = 176 cereri/zi.
 #
 # Variabile: LOOP_MINUTES (cat tine bucla), INTERVAL_SECONDS, NOTIFY_SECRET, plus cele ale lui
@@ -15,7 +15,7 @@
 set -u
 
 LOOP_SECONDS=$(( ${LOOP_MINUTES:-320} * 60 ))
-INTERVAL=${INTERVAL_SECONDS:-3900}
+INTERVAL=${INTERVAL_SECONDS:-1800}
 COMMIT_EVERY=3600
 NOTIFY_URL="https://asp-programare-webhook.vercel.app/api/notify-guests"
 

@@ -95,13 +95,9 @@ export const config = { maxDuration: 30 };
 
 const UNAVAILABLE_MESSAGE = `⚠️ ${escapeMarkdownV2('Serviciu temporar indisponibil — încearcă din nou peste câteva minute.')}`;
 
-// Cooldown intre doua verificari live PENTRU PROPRIETAR -- in memorie, per instanta
-// serverless. Corect doar pentru proprietar (un singur chat fix): pentru orice alt chat
-// folosim rate-limit-ul din Redis (userStore.js), per chat, ca userii sa nu se blocheze
-// unii pe altii (cooldown-ul vechi era global si nedrept intre useri diferiti -- vezi
-// CLAUDE.md). Best-effort: traieste doar cat instanta ramane calda intre invocari.
-const OWNER_COOLDOWN_MS = 45_000;
-let ownerLastCheckAt = 0;
+// Proprietarul NU are cooldown/rate-limit la /acum (scos la cererea lui, 21.11.2026): fiecare /acum
+// face o verificare live (8 cereri ASP din cota zilnica a IDNP-ului lui). Doar ceilalti useri trec prin
+// rate-limit-ul din Redis (userStore.js), per chat, ca sa nu se blocheze unii pe altii.
 
 async function replyTo(botToken, chatId, text, keyboard) {
   await sendTelegramMessage({ botToken, chatId }, text, keyboard);
@@ -152,14 +148,6 @@ async function liveReplyText(person, chatId) {
 }
 
 async function runOwnerLiveCheck(botToken, chatId, person, keyboard) {
-  const now = Date.now();
-  const elapsed = now - ownerLastCheckAt;
-  if (elapsed < OWNER_COOLDOWN_MS) {
-    const waitSec = Math.ceil((OWNER_COOLDOWN_MS - elapsed) / 1000);
-    await replyTo(botToken, chatId, escapeMarkdownV2(`⏳ Ai verificat recent — mai așteaptă ${waitSec}s.`), keyboard);
-    return;
-  }
-  ownerLastCheckAt = now;
   await replyTo(botToken, chatId, await liveReplyText(person, chatId), keyboard);
 }
 

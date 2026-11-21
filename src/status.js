@@ -4,9 +4,9 @@
 
 import { escapeMarkdownV2, formatBlockUntil, formatDateHuman, getLocalParts } from './format.js';
 
-// Checker-ul ruleaza la 65 min (bucla din CI); peste 140 min fara nicio rulare inseamna ca lantul de joburi s-a rupt sau
+// Checker-ul ruleaza la 30 min (bucla din CI); peste 70 min fara nicio rulare inseamna ca lantul de joburi s-a rupt sau
 // intarziat sau ca ceva e stricat -- exact semnalul pe care /status trebuie sa-l faca vizibil.
-const STALE_AFTER_MS = 140 * 60 * 1000;
+const STALE_AFTER_MS = 70 * 60 * 1000;
 
 function hhmm(date) {
   const { hour, minute } = getLocalParts(date);
@@ -57,7 +57,7 @@ export function buildStatusMessage({ now = new Date(), owner, guests, counts, ow
     const age = now.getTime() - last.getTime();
     lines.push(line('⏱', `Checker: ultima rulare ${hhmm(last)} (${agoLabel(age)})`));
     if (age > STALE_AFTER_MS) {
-      lines.push(line('⚠️', 'Nu a mai rulat de peste 2 ore (ar trebui la 65 min) — verifică tab-ul Actions din GitHub: lanțul de joburi s-a putut rupe.'));
+      lines.push(line('⚠️', 'Nu a mai rulat de peste 70 de minute (ar trebui la 30 min) — verifică tab-ul Actions din GitHub: lanțul de joburi s-a putut rupe.'));
     }
     const count = owner.aspDaily?.count ?? 0;
     lines.push(line('🔌', `Cereri ASP azi (UTC): ${count}`));

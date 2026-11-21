@@ -27,10 +27,10 @@ Two independent pieces, both plain HTTP clients against ASP's public JSON API, s
 same `config`/`asp`/`format`/`telegram` modules, deployed to two different platforms
 because they have fundamentally different latency requirements.
 
-- **`src/index.js`** — periodic checker, run every **65 min** by
+- **`src/index.js`** — periodic checker, run every **30 min** by
   `.github/workflows/check.yml` on GitHub Actions via a **self-chaining loop**
   (`scripts/ci-loop.sh`): one job loops `node src/index.js` + `POST /api/notify-guests` every
-  `INTERVAL_SECONDS` (3900) for `LOOP_MINUTES` (320), then its last step runs `gh workflow run
+  `INTERVAL_SECONDS` (1800) for `LOOP_MINUTES` (320), then its last step runs `gh workflow run
   check.yml` (`workflow_dispatch` from `GITHUB_TOKEN` is allowed; needs `actions: write`). GitHub's
   own `schedule` is *not* the cadence: it fired only 4–6×/day even at hourly (measured
   29.09–17.10.2026), so the `30 * * * *` cron is only the restart if the chain breaks. The
@@ -41,7 +41,7 @@ because they have fundamentally different latency requirements.
   out the rest of the interval before its first iteration — without this, every handoff (~4×/day)
   did a duplicate check, ~36 wasted ASP requests/day. Each iteration `git pull`s first, so a push
   takes effect on the next check; state is committed at most hourly (not per iteration) and at
-  loop end. **Why 65 min:** the daily ASP quota is per IDNP and on 18.10.2026 it started
+  loop end. **Interval history (65 → 30 min, changed 21.11.2026 at the owner's request):** 30 min = 48 runs × 8 = 384 requests/day, i.e. about twice the observed quota, so the quota runs out around mid-day (circuit breaker below stops requests until 00:00 UTC; the backup identity, if configured, takes over). It was 65 min because: the daily ASP quota is per IDNP and on 18.10.2026 it started
   rejecting at the 182nd request (181 accepted) with checks every 15 min (768/day); at 65 min that
   is 22 runs × 8 = 176/day, leaving a small margin for the owner's `/acum` (8 requests each, same
   IDNP, *not* counted in `aspDaily`). Real quota is therefore somewhere ≥181, likely ~200. Fetches all monitored targets, diffs against `state/slots.json`
@@ -93,7 +93,7 @@ because they have fundamentally different latency requirements.
   `/status` (owner only; `/status` is no longer an alias of `/acum`) is built by the pure
   `buildStatusMessage` from `status:owner` (the owner's `state/slots.json` fields, which CI
   POSTs as the body of its `/api/notify-guests` call, so a failed check still reports its
-  stale `lastRun` — warned about after 140 min, two missed 65-min runs), `status:guests` (last guest-run summary) and
+  stale `lastRun` — warned about after 70 min, two missed 30-min runs), `status:guests` (last guest-run summary) and
   live Redis counts. `/sterge` now only asks (`DELETE_CONFIRM_KEYBOARD`); the deletion runs
   in `handleDeleteCallback` after "Da, șterge", because it's a persistent keyboard button
   and one stray tap used to erase a guest's data.
@@ -156,6 +156,9 @@ because they have fundamentally different latency requirements.
   non-private chat immediately — it's designed for 1:1 use only, since a group would let
   anyone in it read whatever another member typed (including IDNP/serie/date during
   registration) and drive `/acum`/`/sterge` on someone else's saved data.
+- **Owner `/acum` has no cooldown** (removed 21.11.2026 at the owner's request; `runOwnerLiveCheck` is now a
+  plain call). Each one still costs 8 ASP requests from the owner's IDNP quota. Guests keep the per-chat
+  Redis rate limit + global per-minute cap.
 - **`src/live.js`** — the actual "fetch everything live + build the reply" logic, shared
   between the webhook and (if ever needed) a local script. Deliberately has no dependency
   on `state.js` — a live check bypasses the diff/history entirely by design. Unlike

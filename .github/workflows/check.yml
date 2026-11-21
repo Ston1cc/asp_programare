@@ -3,9 +3,9 @@ name: Verifica locuri ASP
 on:
   schedule:
     # Doar plasa de siguranta. GitHub executa `schedule` de 4-6 ori pe zi, indiferent cat de des
-    # il cerem (masurat 29.09-17.10.2026), deci NU poate fi cadenta. Cadenta (65 min) o da
+    # il cerem (masurat 29.09-17.10.2026), deci NU poate fi cadenta. Cadenta (30 min) o da
     # bucla din scripts/ci-loop.sh, iar jobul isi porneste singur succesorul (vezi ultimul pas).
-    # 65 min = 176 cereri ASP/zi: limita zilnica per IDNP a respins de la a 182-a cerere cu
+    # ATENTIE: 30 min = 384 cereri ASP/zi (48 x 8), peste limita observata (~181-200/zi). Cu 65 min erau 176/zi: limita zilnica per IDNP a respins de la a 182-a cerere cu
     # verificari la 15 min (18.10.2026), deci ~15 min (768/zi) nu incape.
     # Daca lantul se rupe (job anulat de GitHub), un `schedule` il reporneste mai tarziu.
     - cron: '30 * * * *'
@@ -15,8 +15,8 @@ on:
         description: 'Cat tine bucla, in minute (implicit 320 = 5h20)'
         default: '320'
       interval_seconds:
-        description: 'Secunde intre verificari (implicit 3900 = 65 min)'
-        default: '3900'
+        description: 'Secunde intre verificari (implicit 1800 = 30 min)'
+        default: '1800'
       chain:
         description: 'Porneste automat urmatorul job la final (false = doar test)'
         default: 'true'
@@ -49,7 +49,7 @@ jobs:
 
       # Notificarile invitatilor ruleaza pe Vercel (api/notify-guests.js), nu aici: datele lor
       # sunt criptate cu USER_DATA_KEY, care ramane doar in Vercel. Vezi scripts/ci-loop.sh.
-      - name: Bucla de verificare (la 65 min)
+      - name: Bucla de verificare (la 30 min)
         env:
           ASP_IDNP: ${{ secrets.ASP_IDNP }}
           ASP_DOC_SERIES: ${{ secrets.ASP_DOC_SERIES }}
@@ -64,7 +64,7 @@ jobs:
           # Setarile /setari ale proprietarului (api/owner-prefs.js) + apelul notify-guests.
           NOTIFY_SECRET: ${{ secrets.NOTIFY_SECRET }}
           LOOP_MINUTES: ${{ github.event.inputs.loop_minutes || '320' }}
-          INTERVAL_SECONDS: ${{ github.event.inputs.interval_seconds || '3900' }}
+          INTERVAL_SECONDS: ${{ github.event.inputs.interval_seconds || '1800' }}
         run: bash scripts/ci-loop.sh
 
       # Continua lantul si daca ultima verificare a iesit cu cod 1 (failure), dar NU la anulare
