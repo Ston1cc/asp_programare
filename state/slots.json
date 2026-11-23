@@ -1,5 +1,5 @@
 {
-  "lastRun": "2026-11-23T10:07:51.250Z",
+  "lastRun": "2026-11-23T11:17:51.301Z",
   "lastHeartbeatDate": "2026-11-23",
   "consecutiveFailures": 0,
   "earliest": {
@@ -9,7 +9,7 @@
   "slots": {
     "practic-obisnuit-salcamilor|2026-12-21": {
       "date": "2026-12-21",
-      "timeSlots": 5
+      "timeSlots": 4
     },
     "practic-obisnuit-salcamilor|2026-12-22": {
       "date": "2026-12-22",
@@ -17,7 +17,7 @@
     },
     "practic-obisnuit-salcamilor|2026-12-23": {
       "date": "2026-12-23",
-      "timeSlots": 13
+      "timeSlots": 12
     },
     "practic-obisnuit-salcamilor|2026-12-24": {
       "date": "2026-12-24",
@@ -79,7 +79,7 @@
   "rateLimitedUntil": null,
   "aspDaily": {
     "date": "2026-11-23",
-    "count": 122
+    "count": 136
   },
   "backupRateLimitedUntil": null,
   "aspDailyBackup": {
