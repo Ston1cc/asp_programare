@@ -186,6 +186,20 @@ async function runOwnerLiveCheck(botToken, chatId, person, keyboard) {
 }
 
 async function runUserLiveCheck(botToken, chatId, person, keyboard) {
+  // Blocarea ASP se verifica INAINTEA rate-limit-ului pe chat: altfel primul /acum consuma slotul
+  // de 45s si urmatoarele primeau "Ai verificat recent" in loc de mesajul real cu ora deblocarii.
+  // Best-effort (ca in liveReplyText): daca Redis pica, continuam cu fluxul obisnuit.
+  try {
+    const blockedUntil = await getAspBlock(person.idnp);
+    if (blockedUntil) {
+      logUser(chatId, 'live', `result=asp_blocked until=${new Date(blockedUntil).toISOString()}`);
+      await replyTo(botToken, chatId, buildAspBlockedMessage({ until: blockedUntil }), keyboard);
+      return;
+    }
+  } catch (err) {
+    console.error('Eroare la citirea blocarii ASP (Redis):', err.message);
+  }
+
   try {
     const acquired = await tryAcquireRateLimit(chatId);
     if (!acquired) {
