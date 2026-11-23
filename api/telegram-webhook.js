@@ -105,6 +105,30 @@ async function replyTo(botToken, chatId, text, keyboard) {
   await sendTelegramMessage({ botToken, chatId }, text, keyboard);
 }
 
+/**
+ * Un rand de log per eveniment al unui user, cautabil dupa chat_id in logurile Vercel
+ * (ex. `chat=1889741580`). NU loga niciodata textul mesajului: in pasii de inregistrare
+ * contine IDNP/serie/data. Doar eticheta comenzii, starea accesului si rezultatul.
+ */
+function logUser(chatId, event, detail = '') {
+  console.log(`[user] chat=${chatId} ${event}${detail ? ` ${detail}` : ''}`);
+}
+
+const KNOWN_COMMANDS = new Set([
+  ...TRIGGER_COMMANDS,
+  ...REGISTER_COMMANDS,
+  HELP_COMMAND,
+  DELETE_COMMAND,
+  NOTIFY_COMMAND,
+  SETTINGS_COMMAND,
+]);
+
+/** Eticheta sigura de logat pentru un mesaj: comanda cunoscuta, `/?` pentru alta comanda, `text` pentru rest. */
+function commandLabel(text) {
+  if (KNOWN_COMMANDS.has(text)) return text;
+  return text.startsWith('/') ? '/?' : 'text';
+}
+
 /** Tastatura Aproba/Respinge atasata unei cereri de acces -- refolosita atat la notificarea initiala (handleGuestMessage) cat si la retrimiterea din /cereri pentru cereri ratate. */
 function buildApproveKeyboard(targetChatId) {
   return {
@@ -127,7 +151,10 @@ function buildApproveKeyboard(targetChatId) {
 async function liveReplyText(person, chatId) {
   try {
     const blockedUntil = await getAspBlock(person.idnp);
-    if (blockedUntil) return buildAspBlockedMessage({ until: blockedUntil });
+    if (blockedUntil) {
+      logUser(chatId, 'live', `result=asp_blocked until=${new Date(blockedUntil).toISOString()}`);
+      return buildAspBlockedMessage({ until: blockedUntil });
+    }
   } catch (err) {
     console.error('Eroare la citirea blocarii ASP (Redis):', err.message);
   }
@@ -139,6 +166,11 @@ async function liveReplyText(person, chatId) {
     console.error('Eroare la citirea setarilor (Redis):', err.message);
   }
   const { message, rateLimitedUntil } = await buildLiveReply(person, { prefs });
+  logUser(
+    chatId,
+    'live',
+    rateLimitedUntil ? `result=asp_429 until=${new Date(rateLimitedUntil).toISOString()}` : 'result=ok',
+  );
   if (rateLimitedUntil) {
     try {
       await setAspBlock(person.idnp, rateLimitedUntil);
@@ -157,10 +189,12 @@ async function runUserLiveCheck(botToken, chatId, person, keyboard) {
   try {
     const acquired = await tryAcquireRateLimit(chatId);
     if (!acquired) {
+      logUser(chatId, 'live', 'result=rate_limited_chat');
       await replyTo(botToken, chatId, escapeMarkdownV2('⏳ Ai verificat recent — mai așteaptă puțin.'), keyboard);
       return;
     }
     if (await isGlobalRateLimited()) {
+      logUser(chatId, 'live', 'result=rate_limited_global');
       await replyTo(botToken, chatId, escapeMarkdownV2('🚦 Botul e aglomerat chiar acum — mai încearcă peste un minut.'), keyboard);
       return;
     }
@@ -388,6 +422,7 @@ async function handleGuestMessage(cfg, message, rawText, text) {
   // altcineva si ar putea rula /acum sau /sterge pe datele lui. Iese imediat, inaintea
   // oricarei alte procesari.
   if (message.chat.type !== 'private') {
+    logUser(chatId, 'left_group', `type=${message.chat.type}`);
     try {
       await leaveChat(botToken, chatId);
     } catch (err) {
@@ -430,6 +465,8 @@ async function handleGuestMessage(cfg, message, rawText, text) {
     await replyTo(botToken, chatId, UNAVAILABLE_MESSAGE, REGISTER_KEYBOARD);
     return;
   }
+
+  logUser(chatId, 'msg', `cmd=${commandLabel(text)} access=${access?.status ?? 'none'}`);
 
   if (access?.status !== 'approved') {
     if (access?.status === 'denied') {
@@ -487,6 +524,7 @@ async function handleGuestMessage(cfg, message, rawText, text) {
 
   // De aici incolo: acces aprobat -- comportamentul de dinainte de audit-ul de securitate.
   let pending = await getPendingRegistration(chatId);
+  if (pending) logUser(chatId, 'pending', `step=${pending.step ?? 'registration'}`);
   // "Pana la" din /setari foloseste aceeasi cheie `pending`, dar NU e un pas de inregistrare --
   // il tratam separat, altfel ar fi validat ca IDNP. O comanda scrisa in loc de raspuns anuleaza
   // cererea (handlePrefDate intoarce false) si trece mai departe ca o comanda obisnuita.
@@ -537,7 +575,12 @@ async function handleGuestMessage(cfg, message, rawText, text) {
       await setPendingRegistration(chatId, newPending);
       await replyTo(botToken, chatId, reply, REGISTER_KEYBOARD);
     }
+    return;
   }
+
+  // Acces aprobat, fara pas in curs si nicio comanda cunoscuta (ex. text liber): botul nu
+  // raspunde nimic. Logat explicit, ca "nu primesc nimic" sa se poata verifica in loguri.
+  logUser(chatId, 'ignored', `cmd=${commandLabel(text)}`);
 }
 
 /** Tastatura persistenta potrivita unui chat de invitat (inregistrat sau nu). */
@@ -632,6 +675,7 @@ async function handleCallbackQuery(cfg, cq) {
   const { botToken, chatId: ownerId } = cfg.telegram;
 
   const data = String(cq.data || '');
+  logUser(cq.from?.id, 'callback', `data=${data}`);
   if (data.startsWith('pref:')) {
     await handlePrefCallback(cfg, cq, data.slice('pref:'.length));
     return;

@@ -43,15 +43,25 @@ function withFooter(message, footer) {
 async function runGuest({ store, telegram, guest, now, cache }) {
   const { chatId } = guest;
 
-  if (!(await store.isNotifyEnabled(chatId))) return 'skipped';
+  // Motivul fiecarui "skipped" se logheaza cu chat_id (fara date personale), ca sa se vada de ce
+  // un invitat n-a fost verificat -- altfel rezumatul "N sariti" nu spune care si de ce.
+  const skip = (why) => {
+    console.log(`[guest] chat=${chatId} skipped=${why}`);
+    return 'skipped';
+  };
+
+  if (!(await store.isNotifyEnabled(chatId))) return skip('notify_off');
   const person = await store.getPerson(chatId);
-  if (!person) return 'skipped'; // aprobat, dar inca neinregistrat
-  if (await store.getAspBlock(person.idnp)) return 'skipped'; // cota ASP a lui e epuizata
+  if (!person) return skip('not_registered'); // aprobat, dar inca neinregistrat
+  if (await store.getAspBlock(person.idnp)) return skip('asp_blocked'); // cota ASP a lui e epuizata
 
   const state = { ...EMPTY_STATE(), ...((await store.getGuestState(chatId)) ?? {}) };
-  if (!guestDueForCheck(state, now)) return 'skipped'; // verificat acum mai putin de ~65 min
+  if (!guestDueForCheck(state, now)) return skip('not_due'); // verificat acum mai putin de ~65 min
   const prefs = normalizePrefs(await store.getPrefs(chatId));
   const result = await checkPerson({ person, state, now, cache, prefs });
+  console.log(
+    `[guest] chat=${chatId} checked asp_429=${result.rateLimit ? `until=${new Date(result.rateLimit.until).toISOString()}` : 'no'} messages=${result.messages.length}`,
+  );
 
   const messages = [];
   if (result.rateLimit) {
