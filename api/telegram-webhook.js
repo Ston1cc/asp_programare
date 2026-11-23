@@ -148,16 +148,30 @@ function buildApproveKeyboard(targetChatId) {
  * pica, verificarea live merge oricum (doar fara memoria blocarii), ca proprietarul sa nu
  * depinda de Redis pentru /acum, ca inainte.
  */
-async function liveReplyText(person, chatId) {
+async function liveReplyText(person, chatId, backupPerson = null) {
+  // `backupPerson` = ASP_IDNP_2, doar pentru proprietar (rezerva e IDNP-ul lui, cu cota proprie; invitatii
+  // n-o au). Identitatea folosita: principalul, sau rezerva daca principalul e deja blocat (429 salvat).
+  let primaryBlocked = null;
+  let backupBlocked = null;
   try {
-    const blockedUntil = await getAspBlock(person.idnp);
-    if (blockedUntil) {
-      logUser(chatId, 'live', `result=asp_blocked until=${new Date(blockedUntil).toISOString()}`);
-      return buildAspBlockedMessage({ until: blockedUntil });
-    }
+    primaryBlocked = await getAspBlock(person.idnp);
+    if (backupPerson) backupBlocked = await getAspBlock(backupPerson.idnp);
   } catch (err) {
     console.error('Eroare la citirea blocarii ASP (Redis):', err.message);
   }
+  if (primaryBlocked && (!backupPerson || backupBlocked)) {
+    // Toate identitatile disponibile sunt blocate: raspundem imediat, fara nicio cerere ASP.
+    const until = backupPerson
+      ? new Date(Math.min(new Date(primaryBlocked).getTime(), new Date(backupBlocked).getTime()))
+      : primaryBlocked;
+    logUser(chatId, 'live', `result=asp_blocked until=${new Date(until).toISOString()}`);
+    return buildAspBlockedMessage({ until });
+  }
+  const useBackupOnly = Boolean(primaryBlocked); // aici rezerva exista si nu e blocata
+  const first = useBackupOnly ? backupPerson : person;
+  const second = !useBackupOnly && backupPerson && !backupBlocked ? backupPerson : null;
+  const via = useBackupOnly ? 'backup' : 'primary';
+
   // Setarile (/setari) sunt tot best-effort: daca Redis nu raspunde, /acum arata tot, ca inainte.
   let prefs = normalizePrefs(null);
   try {
@@ -165,15 +179,25 @@ async function liveReplyText(person, chatId) {
   } catch (err) {
     console.error('Eroare la citirea setarilor (Redis):', err.message);
   }
-  const { message, rateLimitedUntil } = await buildLiveReply(person, { prefs });
+  const { message, rateLimitedUntil, backupRateLimitedUntil } = await buildLiveReply(first, { prefs, backupPerson: second });
+  // Logat cu `via`: se vede ce identitate a raspuns (si daca s-a trecut pe rezerva in timpul cererii).
+  const switched = Boolean(second && rateLimitedUntil);
   logUser(
     chatId,
     'live',
-    rateLimitedUntil ? `result=asp_429 until=${new Date(rateLimitedUntil).toISOString()}` : 'result=ok',
+    (rateLimitedUntil ? `result=asp_429 until=${new Date(rateLimitedUntil).toISOString()}` : 'result=ok') +
+      ` via=${switched ? 'primary->backup' : via}`,
   );
-  if (rateLimitedUntil) {
+  // Fiecare blocare se salveaza pe identitatea careia ii apartine: `first` pentru rateLimitedUntil,
+  // `second` (rezerva) pentru backupRateLimitedUntil.
+  const saves = [
+    [first, rateLimitedUntil],
+    [second, backupRateLimitedUntil],
+  ];
+  for (const [identity, until] of saves) {
+    if (!identity || !until) continue;
     try {
-      await setAspBlock(person.idnp, rateLimitedUntil);
+      await setAspBlock(identity.idnp, until);
     } catch (err) {
       console.error('Eroare la salvarea blocarii ASP (Redis):', err.message);
     }
@@ -181,8 +205,8 @@ async function liveReplyText(person, chatId) {
   return message;
 }
 
-async function runOwnerLiveCheck(botToken, chatId, person, keyboard) {
-  await replyTo(botToken, chatId, await liveReplyText(person, chatId), keyboard);
+async function runOwnerLiveCheck(botToken, chatId, person, keyboard, backupPerson = null) {
+  await replyTo(botToken, chatId, await liveReplyText(person, chatId, backupPerson), keyboard);
 }
 
 async function runUserLiveCheck(botToken, chatId, person, keyboard) {
@@ -424,7 +448,7 @@ async function handleOwnerMessage(cfg, rawText, text) {
   }
 
   if (TRIGGER_COMMANDS.has(text)) {
-    await runOwnerLiveCheck(botToken, chatId, cfg.person, ACUM_KEYBOARD);
+    await runOwnerLiveCheck(botToken, chatId, cfg.person, ACUM_KEYBOARD, cfg.backupPerson);
   }
 }
 
