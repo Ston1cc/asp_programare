@@ -512,7 +512,9 @@ export function buildRateLimitMessage({ until, countToday, now = new Date() }) {
 export function buildBackupSwitchMessage({ until, countToday, now = new Date() }) {
   const count = countToday > 0 ? ` după ${countToday} cereri azi` : '';
   return [
-    '🔁 *ASP a limitat IDNP-ul principal*',
+    // Antetul trece prin escapeMarkdownV2: "IDNP-ul" are '-', rezervat in MarkdownV2 (HTTP 400 altfel,
+    // iar procesul cadea inainte de saveState -- failover-ul pe rezerva nu se mai salva niciodata).
+    `🔁 *${escapeMarkdownV2('ASP a limitat IDNP-ul principal')}*`,
     '',
     escapeMarkdownV2(`Limită zilnică${count}. Continui verificările pe IDNP-ul de rezervă; principalul revine după ${formatBlockUntil(until, now)}.`),
   ].join('\n');
