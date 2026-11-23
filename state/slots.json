@@ -1,19 +1,19 @@
 {
-  "lastRun": "2026-11-23T12:17:50.997Z",
+  "lastRun": "2026-11-23T13:27:51.785Z",
   "lastHeartbeatDate": "2026-11-23",
   "consecutiveFailures": 0,
   "earliest": {
     "practic-obisnuit-salcamilor": "2026-12-21",
-    "practic-urgent-salcamilor": "2026-12-14"
+    "practic-urgent-salcamilor": "2026-11-24"
   },
   "slots": {
     "practic-obisnuit-salcamilor|2026-12-21": {
       "date": "2026-12-21",
-      "timeSlots": 4
+      "timeSlots": 3
     },
     "practic-obisnuit-salcamilor|2026-12-22": {
       "date": "2026-12-22",
-      "timeSlots": 8
+      "timeSlots": 4
     },
     "practic-obisnuit-salcamilor|2026-12-23": {
       "date": "2026-12-23",
@@ -39,13 +39,17 @@
       "date": "2026-12-31",
       "timeSlots": null
     },
+    "practic-urgent-salcamilor|2026-11-24": {
+      "date": "2026-11-24",
+      "timeSlots": 7
+    },
     "practic-urgent-salcamilor|2026-12-14": {
       "date": "2026-12-14",
       "timeSlots": 11
     },
     "practic-urgent-salcamilor|2026-12-15": {
       "date": "2026-12-15",
-      "timeSlots": 12
+      "timeSlots": 11
     },
     "practic-urgent-salcamilor|2026-12-16": {
       "date": "2026-12-16",
@@ -65,7 +69,7 @@
     },
     "practic-urgent-salcamilor|2026-12-22": {
       "date": "2026-12-22",
-      "timeSlots": 12
+      "timeSlots": null
     },
     "practic-urgent-salcamilor|2026-12-23": {
       "date": "2026-12-23",
@@ -79,7 +83,7 @@
   "rateLimitedUntil": null,
   "aspDaily": {
     "date": "2026-11-23",
-    "count": 148
+    "count": 162
   },
   "backupRateLimitedUntil": null,
   "aspDailyBackup": {
@@ -143,7 +147,7 @@
         3,
         0,
         0,
-        0,
+        1,
         0,
         0,
         1,
@@ -156,20 +160,20 @@
       ],
       "dow": [
         2,
-        6,
+        7,
         0,
         0,
         0,
         0,
         1
       ],
-      "openings": 9,
-      "days": 9
+      "openings": 10,
+      "days": 10
     }
   },
   "schedule": {
     "active": false,
-    "samples": 9,
+    "samples": 10,
     "runsPerDay": 160,
     "intervals": null
   },
