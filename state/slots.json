@@ -1,7 +1,7 @@
 {
-  "lastRun": "2026-11-24T23:28:24.720Z",
+  "lastRun": "2026-11-25T00:38:25.253Z",
   "lastHeartbeatDate": "2026-11-24",
-  "consecutiveFailures": 49,
+  "consecutiveFailures": 56,
   "earliest": {},
   "slots": {},
   "initialized": {
@@ -10,12 +10,12 @@
   },
   "rateLimitedUntil": null,
   "aspDaily": {
-    "date": "2026-11-24",
-    "count": 282
+    "date": "2026-11-25",
+    "count": 8
   },
   "backupRateLimitedUntil": null,
   "aspDailyBackup": {
-    "date": "2026-11-24",
+    "date": "2026-11-25",
     "count": 0
   },
   "stats": {
