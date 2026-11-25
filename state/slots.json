@@ -1,9 +1,69 @@
 {
-  "lastRun": "2026-11-25T04:48:26.728Z",
-  "lastHeartbeatDate": "2026-11-24",
-  "consecutiveFailures": 81,
-  "earliest": {},
-  "slots": {},
+  "lastRun": "2026-11-25T05:53:57.228Z",
+  "lastHeartbeatDate": "2026-11-25",
+  "consecutiveFailures": 0,
+  "earliest": {
+    "practic-obisnuit-salcamilor": "2026-12-23",
+    "practic-urgent-salcamilor": "2026-12-15"
+  },
+  "slots": {
+    "practic-obisnuit-salcamilor|2026-12-23": {
+      "date": "2026-12-23",
+      "timeSlots": 3
+    },
+    "practic-obisnuit-salcamilor|2026-12-24": {
+      "date": "2026-12-24",
+      "timeSlots": 10
+    },
+    "practic-obisnuit-salcamilor|2026-12-28": {
+      "date": "2026-12-28",
+      "timeSlots": 11
+    },
+    "practic-obisnuit-salcamilor|2026-12-29": {
+      "date": "2026-12-29",
+      "timeSlots": 12
+    },
+    "practic-obisnuit-salcamilor|2026-12-30": {
+      "date": "2026-12-30",
+      "timeSlots": 13
+    },
+    "practic-obisnuit-salcamilor|2026-12-31": {
+      "date": "2026-12-31",
+      "timeSlots": 12
+    },
+    "practic-urgent-salcamilor|2026-12-15": {
+      "date": "2026-12-15",
+      "timeSlots": 6
+    },
+    "practic-urgent-salcamilor|2026-12-16": {
+      "date": "2026-12-16",
+      "timeSlots": 12
+    },
+    "practic-urgent-salcamilor|2026-12-17": {
+      "date": "2026-12-17",
+      "timeSlots": 12
+    },
+    "practic-urgent-salcamilor|2026-12-18": {
+      "date": "2026-12-18",
+      "timeSlots": 13
+    },
+    "practic-urgent-salcamilor|2026-12-21": {
+      "date": "2026-12-21",
+      "timeSlots": 12
+    },
+    "practic-urgent-salcamilor|2026-12-22": {
+      "date": "2026-12-22",
+      "timeSlots": 13
+    },
+    "practic-urgent-salcamilor|2026-12-23": {
+      "date": "2026-12-23",
+      "timeSlots": 13
+    },
+    "practic-urgent-salcamilor|2026-12-24": {
+      "date": "2026-12-24",
+      "timeSlots": null
+    }
+  },
   "initialized": {
     "practic-obisnuit-salcamilor": true,
     "practic-urgent-salcamilor": true
@@ -11,7 +71,7 @@
   "rateLimitedUntil": null,
   "aspDaily": {
     "date": "2026-11-25",
-    "count": 58
+    "count": 72
   },
   "backupRateLimitedUntil": null,
   "aspDailyBackup": {
@@ -68,7 +128,7 @@
         0,
         0,
         0,
-        0,
+        1,
         1,
         4,
         1,
@@ -90,20 +150,45 @@
         2,
         10,
         6,
-        0,
+        1,
         0,
         0,
         1
       ],
-      "openings": 19,
-      "days": 19
+      "openings": 20,
+      "days": 34
     }
   },
   "schedule": {
-    "active": false,
-    "samples": 19,
+    "active": true,
+    "samples": 20,
     "runsPerDay": 160,
-    "intervals": null
+    "intervals": [
+      1556,
+      1556,
+      465,
+      1556,
+      1556,
+      1556,
+      1556,
+      465,
+      465,
+      180,
+      465,
+      194,
+      1556,
+      465,
+      274,
+      274,
+      465,
+      465,
+      1556,
+      1556,
+      274,
+      1556,
+      1556,
+      1556
+    ]
   },
-  "nextIntervalSeconds": null
+  "nextIntervalSeconds": 465
 }
