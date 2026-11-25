@@ -1,10 +1,10 @@
 {
-  "lastRun": "2026-11-25T07:48:41.259Z",
+  "lastRun": "2026-11-25T08:52:39.101Z",
   "lastHeartbeatDate": "2026-11-25",
   "consecutiveFailures": 0,
   "earliest": {
     "practic-obisnuit-salcamilor": "2026-12-23",
-    "practic-urgent-salcamilor": "2026-12-15"
+    "practic-urgent-salcamilor": "2026-11-26"
   },
   "slots": {
     "practic-obisnuit-salcamilor|2026-12-23": {
@@ -13,7 +13,7 @@
     },
     "practic-obisnuit-salcamilor|2026-12-24": {
       "date": "2026-12-24",
-      "timeSlots": 9
+      "timeSlots": 7
     },
     "practic-obisnuit-salcamilor|2026-12-28": {
       "date": "2026-12-28",
@@ -31,13 +31,17 @@
       "date": "2026-12-31",
       "timeSlots": 12
     },
+    "practic-urgent-salcamilor|2026-11-26": {
+      "date": "2026-11-26",
+      "timeSlots": 10
+    },
     "practic-urgent-salcamilor|2026-12-15": {
       "date": "2026-12-15",
       "timeSlots": 5
     },
     "practic-urgent-salcamilor|2026-12-16": {
       "date": "2026-12-16",
-      "timeSlots": 12
+      "timeSlots": 11
     },
     "practic-urgent-salcamilor|2026-12-17": {
       "date": "2026-12-17",
@@ -57,7 +61,7 @@
     },
     "practic-urgent-salcamilor|2026-12-23": {
       "date": "2026-12-23",
-      "timeSlots": 13
+      "timeSlots": null
     },
     "practic-urgent-salcamilor|2026-12-24": {
       "date": "2026-12-24",
@@ -71,7 +75,7 @@
   "rateLimitedUntil": null,
   "aspDaily": {
     "date": "2026-11-25",
-    "count": 120
+    "count": 148
   },
   "backupRateLimitedUntil": null,
   "aspDailyBackup": {
@@ -131,7 +135,7 @@
         1,
         1,
         7,
-        1,
+        2,
         3,
         0,
         1,
@@ -150,45 +154,45 @@
         2,
         10,
         6,
-        4,
+        5,
         0,
         0,
         1
       ],
-      "openings": 23,
-      "days": 37
+      "openings": 24,
+      "days": 38
     }
   },
   "schedule": {
     "active": true,
-    "samples": 23,
+    "samples": 24,
     "runsPerDay": 160,
     "intervals": [
-      1433,
-      1433,
-      471,
-      1433,
-      1433,
-      1433,
-      1433,
-      471,
-      471,
+      1449,
+      1449,
+      489,
+      1449,
+      1449,
+      1449,
+      1449,
+      489,
+      489,
       180,
-      471,
-      201,
-      1433,
-      471,
-      282,
-      282,
-      471,
-      471,
-      1433,
-      1433,
-      282,
-      1433,
-      1433,
-      1433
+      294,
+      210,
+      1449,
+      489,
+      294,
+      294,
+      489,
+      489,
+      1449,
+      1449,
+      294,
+      1449,
+      1449,
+      1449
     ]
   },
-  "nextIntervalSeconds": 180
+  "nextIntervalSeconds": 294
 }
