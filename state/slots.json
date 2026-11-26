@@ -1,16 +1,12 @@
 {
-  "lastRun": "2026-11-26T09:55:04.388Z",
+  "lastRun": "2026-11-26T10:55:12.492Z",
   "lastHeartbeatDate": "2026-11-26",
   "consecutiveFailures": 0,
   "earliest": {
-    "practic-urgent-salcamilor": "2026-12-17",
-    "practic-obisnuit-salcamilor": "2026-12-24"
+    "practic-urgent-salcamilor": "2026-11-27",
+    "practic-obisnuit-salcamilor": "2026-12-28"
   },
   "slots": {
-    "practic-obisnuit-salcamilor|2026-12-24": {
-      "date": "2026-12-24",
-      "timeSlots": 1
-    },
     "practic-obisnuit-salcamilor|2026-12-28": {
       "date": "2026-12-28",
       "timeSlots": 7
@@ -27,13 +23,17 @@
       "date": "2026-12-31",
       "timeSlots": 12
     },
+    "practic-urgent-salcamilor|2026-11-27": {
+      "date": "2026-11-27",
+      "timeSlots": 8
+    },
     "practic-urgent-salcamilor|2026-12-17": {
       "date": "2026-12-17",
       "timeSlots": 11
     },
     "practic-urgent-salcamilor|2026-12-18": {
       "date": "2026-12-18",
-      "timeSlots": 12
+      "timeSlots": 11
     },
     "practic-urgent-salcamilor|2026-12-21": {
       "date": "2026-12-21",
@@ -59,7 +59,7 @@
   "rateLimitedUntil": null,
   "aspDaily": {
     "date": "2026-11-26",
-    "count": 142
+    "count": 162
   },
   "backupRateLimitedUntil": null,
   "aspDailyBackup": {
@@ -121,7 +121,7 @@
         7,
         2,
         6,
-        2,
+        3,
         2,
         3,
         2,
@@ -139,44 +139,44 @@
         10,
         6,
         14,
-        1,
+        2,
         0,
         1
       ],
-      "openings": 34,
-      "days": 53
+      "openings": 35,
+      "days": 54
     }
   },
   "schedule": {
     "active": true,
-    "samples": 34,
+    "samples": 35,
     "runsPerDay": 160,
     "intervals": [
-      1537,
-      1537,
-      643,
-      1537,
-      1537,
-      1537,
-      1537,
-      643,
-      643,
+      1553,
+      1553,
+      660,
+      1553,
+      1553,
+      1553,
+      1553,
+      660,
+      660,
       180,
-      406,
+      419,
       180,
-      406,
-      406,
-      297,
-      406,
-      297,
-      643,
-      1537,
-      1537,
-      297,
-      1537,
-      1537,
-      1537
+      307,
+      419,
+      307,
+      419,
+      307,
+      660,
+      1553,
+      1553,
+      307,
+      1553,
+      1553,
+      1553
     ]
   },
-  "nextIntervalSeconds": 180
+  "nextIntervalSeconds": 307
 }
