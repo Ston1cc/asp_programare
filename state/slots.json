@@ -1,5 +1,5 @@
 {
-  "lastRun": "2026-11-27T11:17:36.466Z",
+  "lastRun": "2026-11-27T12:18:10.811Z",
   "lastHeartbeatDate": "2026-11-27",
   "consecutiveFailures": 0,
   "earliest": {
@@ -13,7 +13,7 @@
     },
     "practic-obisnuit-salcamilor|2026-12-29": {
       "date": "2026-12-29",
-      "timeSlots": 4
+      "timeSlots": 3
     },
     "practic-obisnuit-salcamilor|2026-12-30": {
       "date": "2026-12-30",
@@ -25,7 +25,7 @@
     },
     "practic-urgent-salcamilor|2026-12-18": {
       "date": "2026-12-18",
-      "timeSlots": 3
+      "timeSlots": 2
     },
     "practic-urgent-salcamilor|2026-12-21": {
       "date": "2026-12-21",
@@ -48,15 +48,15 @@
     "practic-obisnuit-salcamilor": true,
     "practic-urgent-salcamilor": true
   },
-  "rateLimitedUntil": null,
+  "rateLimitedUntil": "2026-11-27T23:59:59.452Z",
   "aspDaily": {
     "date": "2026-11-27",
-    "count": 168
+    "count": 195
   },
   "backupRateLimitedUntil": null,
   "aspDailyBackup": {
     "date": "2026-11-27",
-    "count": 0
+    "count": 4
   },
   "stats": {
     "since": "2026-11-21T18:07:04.690Z",
@@ -114,7 +114,7 @@
         5,
         6,
         4,
-        6,
+        7,
         4,
         2,
         3,
@@ -132,43 +132,43 @@
         6,
         14,
         8,
-        6,
+        7,
         1
       ],
-      "openings": 47,
-      "days": 68
+      "openings": 48,
+      "days": 69
     }
   },
   "schedule": {
     "active": true,
-    "samples": 47,
+    "samples": 48,
     "runsPerDay": 160,
     "intervals": [
       1609,
-      800,
-      800,
+      809,
+      809,
       1609,
       1609,
       1609,
       1609,
-      800,
-      532,
-      199,
-      266,
-      228,
-      319,
-      228,
-      319,
-      532,
-      399,
-      800,
+      809,
+      540,
+      203,
+      270,
+      232,
+      324,
+      203,
+      324,
+      540,
+      405,
+      809,
       1609,
       1609,
-      399,
+      405,
       1609,
       1609,
-      800
+      809
     ]
   },
-  "nextIntervalSeconds": 228
+  "nextIntervalSeconds": 324
 }
