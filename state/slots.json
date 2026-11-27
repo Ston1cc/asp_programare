@@ -1,9 +1,9 @@
 {
-  "lastRun": "2026-11-27T21:41:54.795Z",
+  "lastRun": "2026-11-27T23:11:55.812Z",
   "lastHeartbeatDate": "2026-11-27",
   "consecutiveFailures": 0,
   "earliest": {
-    "practic-urgent-salcamilor": "2026-11-30",
+    "practic-urgent-salcamilor": "2026-12-21",
     "practic-obisnuit-salcamilor": "2026-12-28"
   },
   "slots": {
@@ -23,22 +23,6 @@
       "date": "2026-12-31",
       "timeSlots": 12
     },
-    "practic-urgent-salcamilor|2026-11-30": {
-      "date": "2026-11-30",
-      "timeSlots": 1
-    },
-    "practic-urgent-salcamilor|2026-12-16": {
-      "date": "2026-12-16",
-      "timeSlots": 1
-    },
-    "practic-urgent-salcamilor|2026-12-17": {
-      "date": "2026-12-17",
-      "timeSlots": 2
-    },
-    "practic-urgent-salcamilor|2026-12-18": {
-      "date": "2026-12-18",
-      "timeSlots": 1
-    },
     "practic-urgent-salcamilor|2026-12-21": {
       "date": "2026-12-21",
       "timeSlots": 12
@@ -53,11 +37,11 @@
     },
     "practic-urgent-salcamilor|2026-12-24": {
       "date": "2026-12-24",
-      "timeSlots": null
+      "timeSlots": 12
     },
     "practic-urgent-salcamilor|2026-12-28": {
       "date": "2026-12-28",
-      "timeSlots": null
+      "timeSlots": 10
     }
   },
   "initialized": {
@@ -72,7 +56,7 @@
   "backupRateLimitedUntil": null,
   "aspDailyBackup": {
     "date": "2026-11-27",
-    "count": 126
+    "count": 132
   },
   "stats": {
     "since": "2026-11-21T18:07:04.690Z",
