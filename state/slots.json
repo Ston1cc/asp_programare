@@ -1,5 +1,5 @@
 {
-  "lastRun": "2026-11-27T06:00:02.888Z",
+  "lastRun": "2026-11-27T07:07:24.492Z",
   "lastHeartbeatDate": "2026-11-27",
   "consecutiveFailures": 0,
   "earliest": {
@@ -13,7 +13,7 @@
     },
     "practic-obisnuit-salcamilor|2026-12-29": {
       "date": "2026-12-29",
-      "timeSlots": 6
+      "timeSlots": 4
     },
     "practic-obisnuit-salcamilor|2026-12-30": {
       "date": "2026-12-30",
@@ -55,7 +55,7 @@
   "rateLimitedUntil": null,
   "aspDaily": {
     "date": "2026-11-27",
-    "count": 38
+    "count": 52
   },
   "backupRateLimitedUntil": null,
   "aspDailyBackup": {
@@ -113,7 +113,7 @@
         0,
         0,
         1,
-        1,
+        2,
         7,
         2,
         6,
@@ -136,43 +136,43 @@
         6,
         14,
         8,
-        1,
+        2,
         1
       ],
-      "openings": 42,
-      "days": 63
+      "openings": 43,
+      "days": 64
     }
   },
   "schedule": {
     "active": true,
-    "samples": 42,
+    "samples": 43,
     "runsPerDay": 160,
     "intervals": [
       1608,
-      755,
-      755,
+      764,
+      764,
       1608,
       1608,
       1608,
       1608,
-      755,
-      755,
-      180,
-      493,
-      207,
-      366,
-      207,
-      291,
-      493,
-      366,
-      755,
+      764,
+      501,
+      184,
+      501,
+      211,
+      373,
+      211,
+      297,
+      501,
+      373,
+      764,
       1608,
       1608,
-      366,
+      373,
       1608,
       1608,
-      755
+      764
     ]
   },
-  "nextIntervalSeconds": 755
+  "nextIntervalSeconds": 184
 }
