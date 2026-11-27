@@ -1,5 +1,5 @@
 {
-  "lastRun": "2026-11-27T16:32:23.303Z",
+  "lastRun": "2026-11-27T17:40:37.872Z",
   "lastHeartbeatDate": "2026-11-27",
   "consecutiveFailures": 0,
   "earliest": {
@@ -26,10 +26,6 @@
     "practic-urgent-salcamilor|2026-11-30": {
       "date": "2026-11-30",
       "timeSlots": 4
-    },
-    "practic-urgent-salcamilor|2026-12-17": {
-      "date": "2026-12-17",
-      "timeSlots": 1
     },
     "practic-urgent-salcamilor|2026-12-18": {
       "date": "2026-12-18",
@@ -64,7 +60,7 @@
   "backupRateLimitedUntil": null,
   "aspDailyBackup": {
     "date": "2026-11-27",
-    "count": 76
+    "count": 82
   },
   "stats": {
     "since": "2026-11-21T18:07:04.690Z",
@@ -127,7 +123,7 @@
         5,
         6,
         2,
-        0,
+        1,
         0,
         3,
         0,
@@ -140,42 +136,42 @@
         6,
         14,
         8,
-        14,
+        15,
         1
       ],
-      "openings": 55,
-      "days": 77
+      "openings": 56,
+      "days": 78
     }
   },
   "schedule": {
     "active": true,
-    "samples": 55,
+    "samples": 56,
     "runsPerDay": 160,
     "intervals": [
       1611,
-      864,
-      864,
+      871,
+      871,
       1611,
       1611,
       1611,
       1611,
-      864,
-      590,
-      228,
-      302,
-      260,
-      361,
-      228,
-      361,
-      302,
-      260,
-      590,
+      871,
+      597,
+      232,
+      307,
+      264,
+      366,
+      232,
+      366,
+      307,
+      264,
+      597,
+      871,
+      1611,
+      454,
       1611,
       1611,
-      448,
-      1611,
-      1611,
-      864
+      871
     ]
   },
   "nextIntervalSeconds": 1611
