@@ -1,12 +1,16 @@
 {
-  "lastRun": "2026-11-26T23:01:07.410Z",
+  "lastRun": "2026-11-27T00:05:35.355Z",
   "lastHeartbeatDate": "2026-11-26",
   "consecutiveFailures": 0,
   "earliest": {
     "practic-urgent-salcamilor": "2026-12-17",
-    "practic-obisnuit-salcamilor": "2026-12-28"
+    "practic-obisnuit-salcamilor": "2026-12-15"
   },
   "slots": {
+    "practic-obisnuit-salcamilor|2026-12-15": {
+      "date": "2026-12-15",
+      "timeSlots": 1
+    },
     "practic-obisnuit-salcamilor|2026-12-28": {
       "date": "2026-12-28",
       "timeSlots": 2
@@ -52,15 +56,15 @@
     "practic-obisnuit-salcamilor": true,
     "practic-urgent-salcamilor": true
   },
-  "rateLimitedUntil": "2026-11-26T23:59:59.619Z",
+  "rateLimitedUntil": null,
   "aspDaily": {
-    "date": "2026-11-26",
-    "count": 192
+    "date": "2026-11-27",
+    "count": 2
   },
   "backupRateLimitedUntil": null,
   "aspDailyBackup": {
-    "date": "2026-11-26",
-    "count": 119
+    "date": "2026-11-27",
+    "count": 0
   },
   "stats": {
     "since": "2026-11-21T18:07:04.690Z",
@@ -106,7 +110,7 @@
     "practic": {
       "hour": [
         0,
-        0,
+        1,
         1,
         0,
         0,
@@ -136,43 +140,43 @@
         6,
         14,
         8,
-        0,
+        1,
         1
       ],
-      "openings": 41,
-      "days": 62
+      "openings": 42,
+      "days": 63
     }
   },
   "schedule": {
     "active": true,
-    "samples": 41,
+    "samples": 42,
     "runsPerDay": 160,
     "intervals": [
-      1603,
-      1603,
-      743,
-      1603,
-      1603,
-      1603,
-      1603,
-      743,
-      743,
+      1608,
+      755,
+      755,
+      1608,
+      1608,
+      1608,
+      1608,
+      755,
+      755,
       180,
-      484,
-      202,
-      359,
-      202,
-      285,
-      484,
-      359,
-      743,
-      1603,
-      1603,
-      359,
-      1603,
-      1603,
-      743
+      493,
+      207,
+      366,
+      207,
+      291,
+      493,
+      366,
+      755,
+      1608,
+      1608,
+      366,
+      1608,
+      1608,
+      755
     ]
   },
-  "nextIntervalSeconds": 1603
+  "nextIntervalSeconds": 755
 }
