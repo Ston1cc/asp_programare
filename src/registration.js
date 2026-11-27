@@ -16,6 +16,8 @@ export const DELETE_COMMAND = '/sterge';
 export const HELP_COMMAND = '/help';
 export const LIST_USERS_COMMAND = '/utilizatori';
 export const REVOKE_COMMAND = '/revoca';
+// Doar proprietar: `/pastreaza <chat_id> <chat_id>...` revoca TOTI ceilalti utilizatori aprobati.
+export const KEEP_COMMAND = '/pastreaza';
 export const LIST_REQUESTS_COMMAND = '/cereri';
 export const NOTIFY_COMMAND = '/notificari';
 export const STATUS_COMMAND = '/status';
@@ -241,6 +243,7 @@ export function buildHelpMessage({ isOwner, hasPerson, needsApproval }) {
     lines.push(cmdLine('/utilizatori', 'listează persoanele cu acces aprobat'));
     lines.push(cmdLine('/cereri', 'listează toate cererile de acces (în așteptare + decise)'));
     lines.push(cmdLine('/revoca <chat_id>', 'revocă accesul unei persoane'));
+    lines.push(cmdLine('/pastreaza <chat_id> ...', 'revocă TOȚI utilizatorii aprobați în afară de cei dați'));
   } else if (hasPerson) {
     lines.push(cmdLine('/acum', 'verifică live cele mai apropiate date, cu datele tale salvate'));
     lines.push(cmdLine('/setari', 'alege ce categorii/filiale/dată-țintă apar la /acum și în alerte'));

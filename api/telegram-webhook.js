@@ -75,6 +75,7 @@ import {
   NOTIFY_NEEDS_REGISTRATION_MESSAGE,
   LIST_USERS_COMMAND,
   REVOKE_COMMAND,
+  KEEP_COMMAND,
   LIST_REQUESTS_COMMAND,
   startRegistrationPrompt,
   advanceRegistration,
@@ -465,6 +466,50 @@ async function handleOwnerMessage(cfg, rawText, text) {
         console.error('Eroare la retrimiterea cererii pentru actiune:', err.message);
       }
     }
+    return;
+  }
+
+  if (text === KEEP_COMMAND || text.startsWith(`${KEEP_COMMAND} `)) {
+    const keep = new Set(rawText.slice(KEEP_COMMAND.length).trim().split(/\s+/).filter(Boolean));
+    if (keep.size === 0 || [...keep].some((id) => !/^\d+$/.test(id))) {
+      await replyTo(botToken, chatId, escapeMarkdownV2('Folosire: /pastreaza <chat_id> <chat_id> ... — revocă pe TOȚI ceilalți utilizatori aprobați.'), ACUM_KEYBOARD);
+      return;
+    }
+    const approved = await listApprovedAccess();
+    // Protectie la typo: un chat_id gresit ar lasa lista de pastrat incompleta si ar revoca oameni
+    // care trebuiau pastrati. Daca vreun id nu e printre cei aprobati, nu revocam nimic.
+    const unknown = [...keep].filter((id) => !approved.some((u) => String(u.chatId) === id));
+    if (unknown.length > 0) {
+      await replyTo(
+        botToken,
+        chatId,
+        escapeMarkdownV2(`Nu am revocat nimic: chat_id necunoscut printre cei aprobați: ${unknown.join(', ')}. Verifică cu /utilizatori.`),
+        ACUM_KEYBOARD,
+      );
+      return;
+    }
+    const toRevoke = approved.filter((u) => !keep.has(String(u.chatId)));
+    for (const u of toRevoke) {
+      await deleteAccess(u.chatId);
+      await deletePerson(u.chatId);
+      await clearPendingRegistration(u.chatId);
+      await deleteGuestNotifyData(u.chatId);
+      await deleteConsent(u.chatId);
+    }
+    const revoked = toRevoke.map((u) => `• ${u.name || '(fără nume)'}${u.username ? ' @' + u.username : ''} — ${u.chatId}`);
+    const kept = approved.filter((u) => keep.has(String(u.chatId))).map((u) => `• ${u.name || '(fără nume)'} — ${u.chatId}`);
+    await replyTo(
+      botToken,
+      chatId,
+      [
+        `🧹 *${escapeMarkdownV2(`Revocați: ${toRevoke.length}`)}*`,
+        ...revoked.map((l) => escapeMarkdownV2(l)),
+        '',
+        `✅ *${escapeMarkdownV2(`Păstrați: ${kept.length}`)}*`,
+        ...kept.map((l) => escapeMarkdownV2(l)),
+      ].join('\n'),
+      ACUM_KEYBOARD,
+    );
     return;
   }
 
