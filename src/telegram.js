@@ -30,14 +30,14 @@ export const REGISTERED_KEYBOARD = {
   keyboard: [
     [{ text: '/acum' }, { text: '/setari' }],
     [{ text: '/notificari' }, { text: '/sterge' }],
-    [{ text: '/help' }],
+    [{ text: '/confidentialitate' }, { text: '/help' }],
   ],
   resize_keyboard: true,
   is_persistent: true,
 };
 
 export const REGISTER_KEYBOARD = {
-  keyboard: [[{ text: '/inregistrare' }, { text: '/help' }]],
+  keyboard: [[{ text: '/inregistrare' }, { text: '/confidentialitate' }, { text: '/help' }]],
   resize_keyboard: true,
   is_persistent: true,
 };
@@ -106,6 +106,11 @@ export async function editMessageText(botToken, chatId, messageId, text, replyMa
 /** Sterge un mesaj -- folosit ca sa scoatem din chat mesajele in care userul a scris IDNP/serie/data. */
 export async function deleteMessage(botToken, chatId, messageId) {
   await callTelegram(botToken, 'deleteMessage', { chat_id: chatId, message_id: messageId });
+}
+
+/** Copiaza un mesaj (poza/document/text) in alt chat, fara eticheta "forwarded" -- dovada platii trimisa proprietarului. */
+export async function copyMessage(botToken, toChatId, fromChatId, messageId) {
+  return callTelegram(botToken, 'copyMessage', { chat_id: toChatId, from_chat_id: fromChatId, message_id: messageId });
 }
 
 /** Scoate botul dintr-un grup -- botul nu trebuie folosit decat in chat privat (vezi CLAUDE.md). */

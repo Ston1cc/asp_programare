@@ -16,7 +16,9 @@ const ALL_COMMANDS = [
   { command: 'setari', description: 'Alege ce categorii/filiale/dată-țintă apar la /acum și în alerte' },
   { command: 'inregistrare', description: 'Introdu IDNP/serie/dată ca să folosești botul în numele tău' },
   { command: 'notificari', description: 'Pornește/oprește notificările automate' },
-  { command: 'sterge', description: 'Șterge datele tale salvate' },
+  { command: 'sterge', description: 'Șterge datele tale salvate și retrage acordul' },
+  { command: 'confidentialitate', description: 'Ce date păstrez, cât timp și cum le ștergi' },
+  { command: 'platit', description: 'Anunță că ai plătit (poți trimite și chitanța)' },
   { command: 'help', description: 'Lista comenzilor disponibile' },
 ];
 

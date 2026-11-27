@@ -166,6 +166,22 @@ because they have fundamentally different latency requirements.
 - **Owner `/acum` has no cooldown** (removed 21.11.2026 at the owner's request; `runOwnerLiveCheck` is now a
   plain call). Each one still costs 8 ASP requests from the owner's IDNP quota. Guests keep the per-chat
   Redis rate limit + global per-minute cap.
+- **Paywall + consent (`src/payment.js`, `src/consent.js`, added 27.11.2026):** access is a one-time
+  manual payment (50 MDL, `PAYMENT_PRICE_MDL`). **Active only when `PAYMENT_INSTRUCTIONS` is set** — without it
+  the legacy approval flow is unchanged (photos from strangers are ignored too). Flow: new chat → access status
+  `unpaid` + payment instructions, owner **not** notified → user sends a photo/document of the receipt (or
+  `/platit`) → `pending`, the webhook `copyMessage`s the proof to the owner with the existing Aprobă/Respinge
+  buttons (`handleUnpaidGuest`) → `approved` (no TTL under the paywall: one-time payment; `person:` still expires
+  after 90 days and re-registering is free). `denied` users can resubmit. Non-approved users get nothing, including
+  no `/acum`. **Consent gate:** an approved chat must have `consent:<chatId>` = `{version, at}` matching
+  `CONSENT_VERSION` before the webhook processes anything (registration, `/acum`, `/setari`...); the notice
+  (`buildPrivacyText`) states what is stored, that data goes to ASP, 90-day retention, and that the administrator
+  can technically read it (holds `USER_DATA_KEY`) — keep it true to the code. `/confidentialitate` shows it to anyone.
+  `/sterge` and `/revoca` delete the consent (= withdrawal). **Bump `CONSENT_VERSION` on any material change of the
+  text**: `src/guests.js` then skips guests without valid consent (zero ASP requests) and sends the consent prompt
+  once per 3 days (`markConsentPrompted`). The notice text is not legally reviewed. Photos/documents are only
+  routed to `handleGuestMessage` under the paywall and are ignored for approved chats (otherwise a photo during
+  registration would be validated as a wrong IDNP).
 - **`src/live.js`** — the actual "fetch everything live + build the reply" logic, shared
   between the webhook and (if ever needed) a local script. Deliberately has no dependency
   on `state.js` — a live check bypasses the diff/history entirely by design. Unlike

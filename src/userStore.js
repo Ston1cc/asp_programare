@@ -27,6 +27,7 @@
 
 import { createClient } from 'redis';
 import { randomBytes, createCipheriv, createDecipheriv, createHash } from 'node:crypto';
+import { isPaywallEnabled } from './payment.js';
 
 const PERSON_TTL_SECONDS = 60 * 60 * 24 * 90;
 const PENDING_TTL_SECONDS = 60 * 10;
@@ -125,9 +126,10 @@ async function getJSON(key) {
   return decrypt(raw);
 }
 
+/** `ttlSeconds` null = fara expirare (doar accesul platit, vezi setAccessStatus). */
 async function setJSON(key, value, ttlSeconds) {
   const client = await getClient();
-  await client.set(key, encrypt(value), { EX: ttlSeconds });
+  await client.set(key, encrypt(value), ttlSeconds == null ? {} : { EX: ttlSeconds });
 }
 
 async function del(key) {
@@ -171,17 +173,53 @@ export async function getAccess(chatId) {
  * mesaj. Intoarce true daca s-a creat acum (deci merita notificat proprietarul), false
  * daca exista deja un record (pending/approved/denied).
  */
-export async function requestAccessIfNew(chatId, meta) {
+export async function requestAccessIfNew(chatId, meta, status = 'pending') {
+  // `status` = 'unpaid' cand plata e activa (src/payment.js): chat-ul a primit doar
+  // instructiunile de plata, proprietarul nu e notificat pana nu trimite dovada.
   const client = await getClient();
-  const value = encrypt({ status: 'pending', ...meta, requestedAt: new Date().toISOString() });
+  const value = encrypt({ status, ...meta, requestedAt: new Date().toISOString() });
   const created = await client.set(`access:${chatId}`, value, { EX: ACCESS_REQUEST_TTL_SECONDS, NX: true });
   return created === 'OK';
 }
 
 export async function setAccessStatus(chatId, status) {
-  const ttl = status === 'approved' ? ACCESS_APPROVED_TTL_SECONDS : ACCESS_DENIED_TTL_SECONDS;
+  // Cu plata activa, accesul aprobat e o plata unica: nu expira. Datele personale (person:)
+  // expira oricum dupa 90 de zile -- userul se reinregistreaza gratuit, nu plateste din nou.
+  let ttl = status === 'approved' ? ACCESS_APPROVED_TTL_SECONDS : ACCESS_DENIED_TTL_SECONDS;
+  if (status === 'approved' && isPaywallEnabled()) ttl = null;
   const existing = (await getAccess(chatId)) ?? {};
   await setJSON(`access:${chatId}`, { ...existing, status }, ttl);
+}
+
+// --- Acord de confidentialitate (src/consent.js) -------------------------------------
+// `consent:<chatId>` = { version, at } -- fara date personale, necriptat, fara TTL (dovada
+// acordului; sters la /sterge si /revoca = retragerea acordului).
+
+export async function getConsent(chatId) {
+  const client = await getClient();
+  const raw = await client.get(`consent:${chatId}`);
+  if (raw == null) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export async function setConsent(chatId, version) {
+  const client = await getClient();
+  await client.set(`consent:${chatId}`, JSON.stringify({ version, at: new Date().toISOString() }));
+}
+
+export async function deleteConsent(chatId) {
+  const client = await getClient();
+  await client.del([`consent:${chatId}`, `consent:asked:${chatId}`]);
+}
+
+/** true o singura data la 3 zile per chat -- ca bucla invitatilor sa nu ceara acordul la fiecare rulare. */
+export async function markConsentPrompted(chatId) {
+  const client = await getClient();
+  return (await client.set(`consent:asked:${chatId}`, '1', { EX: 60 * 60 * 24 * 3, NX: true })) === 'OK';
 }
 
 export async function deleteAccess(chatId) {

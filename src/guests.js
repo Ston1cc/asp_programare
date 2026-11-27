@@ -12,6 +12,7 @@ import { EMPTY_STATE } from './state.js';
 import { normalizePrefs } from './prefs.js';
 import { buildRateLimitMessage, escapeMarkdownV2 } from './format.js';
 import { sendTelegramMessage, REGISTERED_KEYBOARD, BOOKING_KEYBOARD } from './telegram.js';
+import { hasValidConsent, buildConsentPrompt, CONSENT_KEYBOARD, CONSENT_RENEWAL_INTRO } from './consent.js';
 
 // Optiunea de oprire trebuie sa fie vizibila in FIECARE mesaj automat, nu doar la inceput.
 const OPT_OUT_FOOTER = `🔕 ${escapeMarkdownV2('Nu mai vrei notificări automate? Apasă /notificari')}`;
@@ -53,6 +54,19 @@ async function runGuest({ store, telegram, guest, now, cache }) {
   if (!(await store.isNotifyEnabled(chatId))) return skip('notify_off');
   const person = await store.getPerson(chatId);
   if (!person) return skip('not_registered'); // aprobat, dar inca neinregistrat
+
+  // Fara acord valid (retras prin /sterge sau aviz nou) nu prelucram datele lui: nicio cerere
+  // ASP. Cerem acordul o singura data la 3 zile, ca un invitat existent sa afle de ce s-au oprit.
+  if (!hasValidConsent(await store.getConsent(chatId))) {
+    if (await store.markConsentPrompted(chatId)) {
+      await sendTelegramMessage(
+        { botToken: telegram.botToken, chatId },
+        `${CONSENT_RENEWAL_INTRO}\n\n${buildConsentPrompt()}`,
+        CONSENT_KEYBOARD,
+      );
+    }
+    return skip('no_consent');
+  }
   if (await store.getAspBlock(person.idnp)) return skip('asp_blocked'); // cota ASP a lui e epuizata
 
   const state = { ...EMPTY_STATE(), ...((await store.getGuestState(chatId)) ?? {}) };

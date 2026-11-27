@@ -101,6 +101,9 @@ rămâne cadența fixă de 10 minute. O oprești cu variabila GitHub `ADAPTIVE_C
   cu `/sterge`.
 - Mesajele în care cineva își scrie datele sunt șterse din chat imediat după citire.
 - Accesul altor persoane se acordă doar manual, de proprietar (butoane Aprobă / Respinge).
+- Înainte de a cere IDNP-ul, botul afișează un aviz de confidențialitate și cere acord explicit
+  (buton „Sunt de acord"); acordul se salvează cu versiunea textului și se retrage cu `/sterge`.
+  Textul e în `src/consent.js` (`/confidentialitate` îl afișează oricând) — de revizuit juridic.
 - Webhook-ul și endpoint-urile interne verifică un secret, comparat în timp constant.
 - Botul iese automat din orice grup: e gândit doar pentru chat privat.
 - Datele proprietarului stau doar în secretele GitHub / Vercel, niciodată în repo.
@@ -147,6 +150,9 @@ mai sus, plus:
 | `TELEGRAM_WEBHOOK_SECRET` | șir random; Telegram îl trimite înapoi la fiecare cerere |
 | `REDIS_URL` | connection string Redis (`rediss://` dacă providerul oferă TLS) |
 | `USER_DATA_KEY` | 32 bytes random în base64, cheia de criptare a datelor invitaților |
+| `PAYMENT_INSTRUCTIONS` | opțional; pornește accesul cu plată (50 MDL, unică, manuală). Textul „cum plătești", `\n` = rând nou. Fără el, botul merge ca înainte |
+| `PAYMENT_PRICE_MDL` | opțional, implicit `50` |
+| `PRIVACY_CONTACT` | opțional; contactul operatorului din avizul de confidențialitate |
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"   # USER_DATA_KEY

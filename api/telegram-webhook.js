@@ -23,6 +23,7 @@ import {
   editMessageText,
   deleteMessage,
   leaveChat,
+  copyMessage,
   ACUM_KEYBOARD,
   REGISTERED_KEYBOARD,
   REGISTER_KEYBOARD,
@@ -40,6 +41,24 @@ import {
 } from '../src/prefs.js';
 import { buildStatusMessage } from '../src/status.js';
 import { buildStatsMessage } from '../src/stats.js';
+import {
+  PAID_COMMAND,
+  isPaywallEnabled,
+  buildPaymentInstructionsMessage,
+  PAYMENT_PROOF_RECEIVED_MESSAGE,
+  PAYMENT_PENDING_MESSAGE,
+  PAYMENT_DENIED_MESSAGE,
+} from '../src/payment.js';
+import {
+  PRIVACY_COMMAND,
+  CONSENT_VERSION,
+  hasValidConsent,
+  buildPrivacyText,
+  buildConsentPrompt,
+  CONSENT_KEYBOARD,
+  CONSENT_GIVEN_MESSAGE,
+  CONSENT_DECLINED_MESSAGE,
+} from '../src/consent.js';
 import {
   REGISTER_COMMANDS,
   DELETE_COMMAND,
@@ -88,6 +107,9 @@ import {
   isNotifyEnabled,
   setNotifyEnabled,
   deleteGuestNotifyData,
+  getConsent,
+  setConsent,
+  deleteConsent,
   getPrefs,
   setPrefs,
   getStatus,
@@ -121,6 +143,8 @@ const KNOWN_COMMANDS = new Set([
   DELETE_COMMAND,
   NOTIFY_COMMAND,
   SETTINGS_COMMAND,
+  PRIVACY_COMMAND,
+  PAID_COMMAND,
 ]);
 
 /** Eticheta sigura de logat pentru un mesaj: comanda cunoscuta, `/?` pentru alta comanda, `text` pentru rest. */
@@ -411,11 +435,18 @@ async function handleOwnerMessage(cfg, rawText, text) {
       return;
     }
     const pending = all.filter((r) => r.status === 'pending');
-    const decided = all.filter((r) => r.status !== 'pending');
+    const unpaid = all.filter((r) => r.status === 'unpaid');
+    const decided = all.filter((r) => r.status === 'approved' || r.status === 'denied');
     const lines = [`📋 *${escapeMarkdownV2('Toate cererile')}*`, ''];
     if (pending.length > 0) {
       lines.push(escapeMarkdownV2(`⏳ În așteptare (${pending.length}):`));
       lines.push(...pending.map(formatAccessListLine));
+      lines.push('');
+    }
+    // Au primit doar instructiunile de plata; fara butoane -- nu e nimic de decis inca.
+    if (unpaid.length > 0) {
+      lines.push(escapeMarkdownV2(`💳 Nu au trimis încă plata (${unpaid.length}):`));
+      lines.push(...unpaid.map(formatAccessListLine));
       lines.push('');
     }
     if (decided.length > 0) {
@@ -443,6 +474,7 @@ async function handleOwnerMessage(cfg, rawText, text) {
     await deletePerson(targetChatId);
     await clearPendingRegistration(targetChatId);
     await deleteGuestNotifyData(targetChatId);
+    await deleteConsent(targetChatId);
     await replyTo(botToken, chatId, escapeMarkdownV2(`Acces revocat pentru chat_id ${targetChatId}.`), ACUM_KEYBOARD);
     return;
   }
@@ -450,6 +482,69 @@ async function handleOwnerMessage(cfg, rawText, text) {
   if (TRIGGER_COMMANDS.has(text)) {
     await runOwnerLiveCheck(botToken, chatId, cfg.person, ACUM_KEYBOARD, cfg.backupPerson);
   }
+}
+
+/**
+ * Chat fara acces aprobat, cand plata e activa (src/payment.js). Un chat nou primeste doar
+ * instructiunile de plata si NU il notificam pe proprietar; abia cand userul trimite dovada
+ * (poza/document) sau scrie /platit, cererea devine `pending` si proprietarul primeste dovada
+ * + butoanele Aproba/Respinge. Un chat respins (plata neconfirmata) poate retrimite dovada.
+ */
+async function handleUnpaidGuest(cfg, message, text, access) {
+  const { botToken, chatId: ownerId } = cfg.telegram;
+  const chatId = message.chat.id;
+
+  if (access?.status === 'pending') {
+    await replyTo(botToken, chatId, PAYMENT_PENDING_MESSAGE, REGISTER_KEYBOARD);
+    return;
+  }
+
+  const meta = {
+    chatId: String(chatId),
+    name: [message.from?.first_name, message.from?.last_name].filter(Boolean).join(' ') || null,
+    username: message.from?.username || null,
+  };
+
+  if (!access) {
+    try {
+      await requestAccessIfNew(chatId, meta, 'unpaid');
+    } catch (err) {
+      console.error('Eroare la crearea cererii de acces:', err.message);
+      await replyTo(botToken, chatId, UNAVAILABLE_MESSAGE, REGISTER_KEYBOARD);
+      return;
+    }
+    await replyTo(botToken, chatId, buildPaymentInstructionsMessage(), REGISTER_KEYBOARD);
+    return;
+  }
+
+  // `unpaid` sau `denied`.
+  const hasFile = Boolean(message.photo || message.document);
+  if (!hasFile && text !== PAID_COMMAND) {
+    if (access.status === 'denied') await replyTo(botToken, chatId, PAYMENT_DENIED_MESSAGE, REGISTER_KEYBOARD);
+    await replyTo(botToken, chatId, buildPaymentInstructionsMessage(), REGISTER_KEYBOARD);
+    return;
+  }
+
+  try {
+    await setAccessStatus(chatId, 'pending');
+  } catch (err) {
+    console.error('Eroare la marcarea platii:', err.message);
+    await replyTo(botToken, chatId, UNAVAILABLE_MESSAGE, REGISTER_KEYBOARD);
+    return;
+  }
+  logUser(chatId, 'payment_submitted', `proof=${hasFile ? 'file' : 'claim'}`);
+  try {
+    if (hasFile) await copyMessage(botToken, ownerId, chatId, message.message_id);
+    await sendTelegramMessage(
+      { botToken, chatId: ownerId },
+      formatAccessRequestText({ ...meta, proof: hasFile ? 'file' : 'claim' }),
+      buildApproveKeyboard(chatId),
+    );
+  } catch (err) {
+    // Userul e deja `pending`: proprietarul o regaseste cu butoane in /cereri.
+    console.error('Eroare la notificarea proprietarului:', err.message);
+  }
+  await replyTo(botToken, chatId, PAYMENT_PROOF_RECEIVED_MESSAGE, REGISTER_KEYBOARD);
 }
 
 async function handleGuestMessage(cfg, message, rawText, text) {
@@ -488,6 +583,12 @@ async function handleGuestMessage(cfg, message, rawText, text) {
     return;
   }
 
+  // Avizul de confidentialitate se poate citi oricand, fara acces si fara acord.
+  if (text === PRIVACY_COMMAND) {
+    await replyTo(botToken, chatId, buildPrivacyText(), await guestKeyboardFor(chatId));
+    return;
+  }
+
   // /sterge nu mai sterge direct: e un buton din tastatura, un tap gresit n-ar trebui sa
   // distruga datele. Stergerea reala se face in handleDeleteCallback, dupa confirmare.
   if (text === DELETE_COMMAND) {
@@ -507,6 +608,10 @@ async function handleGuestMessage(cfg, message, rawText, text) {
   logUser(chatId, 'msg', `cmd=${commandLabel(text)} access=${access?.status ?? 'none'}`);
 
   if (access?.status !== 'approved') {
+    if (isPaywallEnabled()) {
+      await handleUnpaidGuest(cfg, message, text, access);
+      return;
+    }
     if (access?.status === 'denied') {
       await replyTo(botToken, chatId, ACCESS_DENIED_MESSAGE, REGISTER_KEYBOARD);
       return;
@@ -539,6 +644,29 @@ async function handleGuestMessage(cfg, message, rawText, text) {
       }
     }
     await replyTo(botToken, chatId, ACCESS_REQUESTED_MESSAGE, REGISTER_KEYBOARD);
+    return;
+  }
+
+  // Poze/documente nu inseamna nimic pentru un chat aprobat (doar dovada platii conta, mai sus):
+  // fara asta, o poza trimisa in mijlocul inregistrarii ar fi validata ca IDNP gresit.
+  if (typeof message.text !== 'string') {
+    logUser(chatId, 'ignored', 'cmd=non_text');
+    return;
+  }
+
+  // Poarta de acord: nicio prelucrare (inregistrare, setari, verificari) fara acordul pentru
+  // versiunea curenta a avizului. Retras prin /sterge, cerut din nou la urmatorul mesaj.
+  let consent = null;
+  try {
+    consent = await getConsent(chatId);
+  } catch (err) {
+    console.error('Eroare la citirea acordului:', err.message);
+    await replyTo(botToken, chatId, UNAVAILABLE_MESSAGE, REGISTER_KEYBOARD);
+    return;
+  }
+  if (!hasValidConsent(consent)) {
+    logUser(chatId, 'consent_prompt');
+    await replyTo(botToken, chatId, buildConsentPrompt(), CONSENT_KEYBOARD);
     return;
   }
 
@@ -704,9 +832,62 @@ async function handleDeleteCallback(cfg, cq, choice) {
   await deletePerson(fromId);
   await clearPendingRegistration(fromId);
   await deleteGuestNotifyData(fromId);
+  await deleteConsent(fromId); // stergerea datelor = retragerea acordului
   await answerCallbackQuery(botToken, cq.id, 'Șters.');
   await editResult(DELETE_DONE_MESSAGE);
-  await replyTo(botToken, fromId, escapeMarkdownV2('Poți reîncepe oricând cu /inregistrare.'), REGISTER_KEYBOARD);
+  await replyTo(
+    botToken,
+    fromId,
+    escapeMarkdownV2('Acordul a fost retras. Poți reîncepe oricând cu /inregistrare (ți se va cere din nou acordul).'),
+    REGISTER_KEYBOARD,
+  );
+}
+
+/**
+ * Butoanele avizului de confidentialitate (`consent:yes|no`). Ca `pref:`/`del:`, actioneaza doar
+ * pe `cq.from.id` (identitatea confirmata de Telegram) si doar pentru un chat cu acces aprobat.
+ * Dupa "da": porneste inregistrarea, sau, daca are deja date salvate (acord reinnoit), doar confirma.
+ */
+async function handleConsentCallback(cfg, cq, choice) {
+  const { botToken } = cfg.telegram;
+  const fromId = cq.from?.id;
+  if (fromId == null) {
+    await answerCallbackQuery(botToken, cq.id, '');
+    return;
+  }
+  if ((await getAccess(fromId))?.status !== 'approved') {
+    await answerCallbackQuery(botToken, cq.id, 'Nu ai acces.');
+    return;
+  }
+
+  const editResult = async (text) => {
+    if (cq.message?.chat?.id == null || cq.message?.message_id == null) return;
+    try {
+      await editMessageText(botToken, cq.message.chat.id, cq.message.message_id, text);
+    } catch (err) {
+      console.error('Eroare la editarea mesajului de acord:', err.message);
+    }
+  };
+
+  if (choice !== 'yes') {
+    logUser(fromId, 'consent', 'choice=no');
+    await answerCallbackQuery(botToken, cq.id, 'Nu am salvat nimic.');
+    await editResult(CONSENT_DECLINED_MESSAGE);
+    return;
+  }
+
+  await setConsent(fromId, CONSENT_VERSION);
+  logUser(fromId, 'consent', `choice=yes version=${CONSENT_VERSION}`);
+  await answerCallbackQuery(botToken, cq.id, 'Salvat.');
+  await editResult(CONSENT_GIVEN_MESSAGE);
+
+  if (await getPerson(fromId)) {
+    await replyTo(botToken, fromId, escapeMarkdownV2('Poți continua: /acum, /setari, /notificari.'), REGISTERED_KEYBOARD);
+    return;
+  }
+  const { pending: newPending, reply } = startRegistrationPrompt();
+  await setPendingRegistration(fromId, newPending);
+  await replyTo(botToken, fromId, reply, REGISTER_KEYBOARD);
 }
 
 async function handleCallbackQuery(cfg, cq) {
@@ -720,6 +901,10 @@ async function handleCallbackQuery(cfg, cq) {
   }
   if (data.startsWith('del:')) {
     await handleDeleteCallback(cfg, cq, data.slice('del:'.length));
+    return;
+  }
+  if (data.startsWith('consent:')) {
+    await handleConsentCallback(cfg, cq, data.slice('consent:'.length));
     return;
   }
 
@@ -784,13 +969,17 @@ export default async function handler(req, res) {
       await handleCallbackQuery(cfg, callbackQuery);
     } else {
       const message = req.body?.message;
-      if (message?.chat?.id != null && typeof message.text === 'string') {
+      const isText = typeof message?.text === 'string';
+      // Poze/documente conteaza doar de la chat-uri straine (dovada platii) -- proprietarul nu
+      // trimite fisiere botului, iar un mesaj non-text de la el ramane ignorat ca inainte.
+      const isProof = isPaywallEnabled() && Boolean(message?.photo || message?.document);
+      if (message?.chat?.id != null && (isText || isProof)) {
         const chatId = message.chat.id;
-        const rawText = message.text.trim();
+        const rawText = (isText ? message.text : (message.caption ?? '')).trim();
         const text = rawText.toLowerCase();
 
         if (String(chatId) === String(cfg.telegram.chatId)) {
-          await handleOwnerMessage(cfg, rawText, text);
+          if (isText) await handleOwnerMessage(cfg, rawText, text);
         } else {
           await handleGuestMessage(cfg, message, rawText, text);
         }

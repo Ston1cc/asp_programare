@@ -9,6 +9,7 @@
 // caractere de markup literale (`*`) -- niciodata backslash-uri scrise de mana.
 
 import { escapeMarkdownV2 } from './format.js';
+import { isPaywallEnabled, PAYMENT_APPROVED_MESSAGE, PAYMENT_DENIED_MESSAGE } from './payment.js';
 
 export const REGISTER_COMMANDS = new Set(['/inregistrare', '/start']);
 export const DELETE_COMMAND = '/sterge';
@@ -185,19 +186,24 @@ export const ACCESS_DENIED_MESSAGE = `❌ ${escapeMarkdownV2('Cererea ta de acce
 export const ACCESS_REQUESTED_MESSAGE = `👋 ${escapeMarkdownV2('Cererea ta de acces a fost trimisă proprietarului botului. Revino după ce e aprobată.')}`;
 
 /** Mesajul trimis PROPRIETARULUI cand apare o cerere noua, cu butoane Aproba/Respinge atasate separat. */
-export function formatAccessRequestText({ chatId, name, username }) {
+export function formatAccessRequestText({ chatId, name, username, proof }) {
   const label = username ? `${name || '(fără nume)'} (@${username})` : name || `chat ${chatId}`;
-  return [
-    `🔔 *${escapeMarkdownV2('Cerere nouă de acces la bot')}*`,
+  const paywall = isPaywallEnabled();
+  const lines = [
+    paywall ? `💳 *${escapeMarkdownV2('Plată de verificat')}*` : `🔔 *${escapeMarkdownV2('Cerere nouă de acces la bot')}*`,
     '',
     escapeMarkdownV2(label),
     escapeMarkdownV2(`chat_id: ${chatId}`),
-  ].join('\n');
+  ];
+  // `proof` doar la notificarea initiala (dupa aprobare/respingere mesajul e re-randat fara el).
+  if (proof === 'file') lines.push('', escapeMarkdownV2('Dovada plății e mesajul de mai sus.'));
+  if (proof === 'claim') lines.push('', escapeMarkdownV2('A scris /platit, fără dovadă — verifică în contul tău.'));
+  return lines.join('\n');
 }
 
 /** Un rand compact per cerere, pentru /cereri -- include statusul, spre deosebire de formatAccessRequestText (doar pentru cererea noua, inca fara status decis). */
 export function formatAccessListLine(record) {
-  const emoji = record.status === 'approved' ? '✅' : record.status === 'denied' ? '❌' : '⏳';
+  const emoji = record.status === 'approved' ? '✅' : record.status === 'denied' ? '❌' : record.status === 'unpaid' ? '💳' : '⏳';
   const label = record.username ? `${record.name || '(fără nume)'} (@${record.username})` : record.name || `chat ${record.chatId}`;
   const when = record.requestedAt ? record.requestedAt.slice(0, 16).replace('T', ' ') : '?';
   return escapeMarkdownV2(`${emoji} ${label} — chat_id ${record.chatId} — cerut ${when}`);
@@ -210,6 +216,7 @@ export function buildAccessDecisionLine(status) {
 
 /** Mesajul trimis SOLICITANTULUI dupa decizia proprietarului. */
 export function buildAccessDecisionMessage(status) {
+  if (isPaywallEnabled()) return status === 'approved' ? PAYMENT_APPROVED_MESSAGE : PAYMENT_DENIED_MESSAGE;
   return status === 'approved'
     ? `✅ ${escapeMarkdownV2('Ai fost aprobat! Scrie /inregistrare ca să-ți introduci datele.')}`
     : ACCESS_DENIED_MESSAGE;
@@ -238,14 +245,15 @@ export function buildHelpMessage({ isOwner, hasPerson, needsApproval }) {
     lines.push(cmdLine('/acum', 'verifică live cele mai apropiate date, cu datele tale salvate'));
     lines.push(cmdLine('/setari', 'alege ce categorii/filiale/dată-țintă apar la /acum și în alerte'));
     lines.push(cmdLine('/notificari', 'pornește/oprește notificările automate (alerte + rezumat 07:30)'));
-    lines.push(cmdLine('/sterge', 'șterge datele tale salvate (IDNP/serie/dată)'));
+    lines.push(cmdLine('/sterge', 'șterge datele tale salvate (IDNP/serie/dată) și retrage acordul'));
   } else if (needsApproval) {
     // Nu aratam /inregistrare aici -- inainte de aprobare, comanda doar retrimite/
     // reaminteste cererea de acces, nu porneste inregistrarea (vezi CLAUDE.md).
-    lines.push(escapeMarkdownV2('Scrie orice mesaj ca să trimiți o cerere de acces proprietarului botului.'));
+    lines.push(escapeMarkdownV2('Scrie orice mesaj ca să vezi cum obții accesul.'));
   } else {
     lines.push(cmdLine('/inregistrare', 'introdu IDNP/serie/dată ca să poți folosi botul în numele tău'));
   }
+  if (!isOwner) lines.push(cmdLine('/confidentialitate', 'ce date păstrez, cât timp și cum le ștergi'));
   lines.push(cmdLine('/help', 'acest mesaj'));
   return lines.join('\n');
 }
