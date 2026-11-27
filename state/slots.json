@@ -1,5 +1,5 @@
 {
-  "lastRun": "2026-11-27T21:06:40.364Z",
+  "lastRun": "2026-11-27T21:41:54.795Z",
   "lastHeartbeatDate": "2026-11-27",
   "consecutiveFailures": 0,
   "earliest": {
@@ -27,17 +27,13 @@
       "date": "2026-11-30",
       "timeSlots": 1
     },
-    "practic-urgent-salcamilor|2026-12-08": {
-      "date": "2026-12-08",
-      "timeSlots": 1
-    },
-    "practic-urgent-salcamilor|2026-12-10": {
-      "date": "2026-12-10",
+    "practic-urgent-salcamilor|2026-12-16": {
+      "date": "2026-12-16",
       "timeSlots": 1
     },
     "practic-urgent-salcamilor|2026-12-17": {
       "date": "2026-12-17",
-      "timeSlots": 1
+      "timeSlots": 2
     },
     "practic-urgent-salcamilor|2026-12-18": {
       "date": "2026-12-18",
@@ -53,7 +49,7 @@
     },
     "practic-urgent-salcamilor|2026-12-23": {
       "date": "2026-12-23",
-      "timeSlots": null
+      "timeSlots": 13
     },
     "practic-urgent-salcamilor|2026-12-24": {
       "date": "2026-12-24",
@@ -76,7 +72,7 @@
   "backupRateLimitedUntil": null,
   "aspDailyBackup": {
     "date": "2026-11-27",
-    "count": 118
+    "count": 126
   },
   "stats": {
     "since": "2026-11-21T18:07:04.690Z",
@@ -144,7 +140,7 @@
         6,
         1,
         1,
-        2
+        3
       ],
       "dow": [
         2,
@@ -152,43 +148,43 @@
         6,
         14,
         8,
-        21,
+        22,
         1
       ],
-      "openings": 62,
-      "days": 88
+      "openings": 63,
+      "days": 89
     }
   },
   "schedule": {
     "active": true,
-    "samples": 62,
+    "samples": 63,
     "runsPerDay": 160,
     "intervals": [
       1612,
-      911,
-      911,
+      918,
+      918,
       1612,
       1612,
       1612,
       1612,
-      911,
-      635,
-      253,
-      333,
-      287,
-      396,
-      253,
-      396,
-      333,
-      287,
-      635,
-      911,
+      918,
+      642,
+      256,
+      337,
+      291,
+      400,
+      256,
+      400,
+      337,
+      291,
+      642,
+      918,
       1612,
-      287,
-      911,
-      911,
-      635
+      291,
+      918,
+      918,
+      493
     ]
   },
-  "nextIntervalSeconds": 635
+  "nextIntervalSeconds": 1800
 }
