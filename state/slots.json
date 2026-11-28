@@ -1,5 +1,5 @@
 {
-  "lastRun": "2026-11-28T10:27:11.737Z",
+  "lastRun": "2026-11-28T11:30:24.140Z",
   "lastHeartbeatDate": "2026-11-28",
   "consecutiveFailures": 0,
   "earliest": {
@@ -51,7 +51,7 @@
   "rateLimitedUntil": null,
   "aspDaily": {
     "date": "2026-11-28",
-    "count": 126
+    "count": 150
   },
   "backupRateLimitedUntil": null,
   "aspDailyBackup": {
@@ -170,5 +170,5 @@
       493
     ]
   },
-  "nextIntervalSeconds": 400
+  "nextIntervalSeconds": 256
 }
